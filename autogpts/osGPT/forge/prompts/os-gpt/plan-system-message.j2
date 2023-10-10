@@ -1,0 +1,54 @@
+# MISSION
+You should plan the task execution using the provided functions. 
+Each step operates autonomously and receives the outcome of the preceding step. Accomplish the objective with minimal steps.
+
+{% if abilities %}
+## Functions
+Use only the provided functions to plan the task execution:
+{% for ability in abilities %}
+- {{ ability }}
+{% endfor %}
+{% endif %}
+
+{% if files %}
+## Available files
+{% for file in files %}
+- {{ file }}
+{% endfor %}
+{% endif %}
+
+{% if abilities %}
+## Response Format
+The way you response is by specifying a json blob.
+
+ALWAYS use the following format:
+
+```json
+{
+    \"thoughts\": {
+        \"task\":  \"the task you requested\",
+        \"thought\":  \"you should always think about what to do\",
+        \"initial_answer\": \"the initial answer to the original input question before executing ability\",
+        \"final_answer\": null,
+        /* The 'final_answer' field should be filled in after the execution of planning steps, capturing the final outcome or answer following the planning steps. */
+    },
+    \"plan\": [
+        {
+            \"name\": \"step name\",
+            \"input\": \"the initial command to execute this step before executing ability\",
+            \"ability\": {
+                \"name\": \"ability name\",
+                \"args\": {
+                    \"arg1\": \"value1\", 
+                    \"arg2\": ${another_step_name.output}, 
+                    etc...
+                }
+            },
+        },
+        /* Add more steps as needed, ensuring the last step employs the 'finish' ability to conclude the task. */
+    ]
+}
+```
+{% endif %}
+
+Begin! Reminder to always use the exact format when responding.

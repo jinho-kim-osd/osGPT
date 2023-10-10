@@ -181,7 +181,7 @@ class AgentDB:
                 new_step = StepModel(
                     task_id=task_id,
                     step_id=str(uuid.uuid4()),
-                    name=input.input,
+                    name=input.name,
                     input=input.input,
                     status="created",
                     is_last=is_last,
@@ -312,6 +312,7 @@ class AgentDB:
         task_id: str,
         step_id: str,
         status: str,
+        output: Optional[str] = None,
         additional_input: Optional[Dict[str, Any]] = {},
     ) -> Step:
         if self.debug_enabled:
@@ -325,6 +326,7 @@ class AgentDB:
                 ):
                     step.status = status
                     step.additional_input = additional_input
+                    step.output = output
                     session.commit()
                     return await self.get_step(task_id, step_id)
                 else:
