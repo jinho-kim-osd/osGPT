@@ -45,15 +45,10 @@ def replace_prompt_placeholders(prompt: str, **variables: Any) -> str:
     if len(placeholders) == 0:
         return prompt
 
-    logger.info("Original Prompt!!: " + str(prompt))
     for placeholder in placeholders:
-        logger.info("PlaceHolder: " + placeholder)
         s = placeholder.split(".")
         variable_name = s[0]
-        logger.info("variable_name: " + variable_name)
         variable = variables[variable_name]
-        logger.info("variables: " + str(variables))
-        logger.info("variable: " + str(variable))
         if len(s) > 1:
             attr = s[-1]
             output = getattr(variable, attr, None)

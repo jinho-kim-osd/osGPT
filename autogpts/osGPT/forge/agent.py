@@ -142,6 +142,13 @@ class ForgeAgent(Agent):
                 artifact_id=observation.artifact_id, step_id=step.step_id
             )
             observation = observation.dict(exclude_none=True)
+        elif isinstance(observation, dict):
+            artifacts: List[Artifact] = observation.pop("artifacts", [])
+            logger.info("Artifacts: " + str(artifacts))
+            for artifact in artifacts:
+                await self.db.update_artifact(
+                    artifact_id=artifact.artifact_id, step_id=step.step_id
+                )
         return observation
 
     async def _answer(

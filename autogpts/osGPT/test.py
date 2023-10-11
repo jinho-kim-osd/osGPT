@@ -31,10 +31,10 @@ async def execute_task(task_id):
 
 
 # input = "Write the word 'Washington' to a .txt file"
-input = "Read the file called file_to_read.txt and write its content to a file called output.txt"
+# input = "Read the file called file_to_read.txt and write its content to a file called output.txt"
 # input = "Create a brief report or summary highlighting how one or more companies from companies.txt are addressing or capitalizing on challenges or trends from challenges.txt. Write a file called output.txt."
 
-# input = "Create a three_sum function in a file called sample_code.py. Given an array of integers, return indices of the three numbers such that they add up to a specific target. You may assume that each input would have exactly one solution, and you may not use the same element twice. Example: Given nums = [2, 7, 11, 15], target = 20, Because nums[0] + nums[1] + nums[2] = 2 + 7 + 11 = 20, return [0, 1, 2]."
+input = "Create a three_sum function in a file called sample_code.py. Given an array of integers, return indices of the three numbers such that they add up to a specific target. You may assume that each input would have exactly one solution, and you may not use the same element twice. Example: Given nums = [2, 7, 11, 15], target = 20, Because nums[0] + nums[1] + nums[2] = 2 + 7 + 11 = 20, return [0, 1, 2]."
 # input = "Read the file called file_to_read.txt and write its content to a file called output.txt"
 
 # input = """Create a random password generator. The password should have between 8 and 16 characters and should contain letters, numbers and symbols.
@@ -286,5 +286,5 @@ input = "Read the file called file_to_read.txt and write its content to a file c
 # - this class will have to pass all the tests.
 # - you're not allowed to modify any other file than the battleship.py. You can add other files as long as the main entrypoint is the battleship class."""
 
-# output = asyncio.run(execute(input))
-output = asyncio.run(execute_task("f193a1d5-4d45-4f1e-b64f-7901dcecc2f8"))
+output = asyncio.run(execute(input))
+# output = asyncio.run(execute_task("f193a1d5-4d45-4f1e-b64f-7901dcecc2f8"))

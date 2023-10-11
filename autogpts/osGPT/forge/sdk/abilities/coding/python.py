@@ -2,8 +2,6 @@
 Ability for running Python code
 """
 from typing import Dict, Optional
-import subprocess
-import json
 import os
 import re
 import multiprocessing
@@ -12,10 +10,10 @@ from io import StringIO
 
 from pydantic import BaseModel, Field
 
-# from ...forge_log import ForgeLogger
-# from ..registry import ability
+from ...forge_log import ForgeLogger
+from ..registry import ability
 
-# logger = ForgeLogger(__name__)
+logger = ForgeLogger(__name__)
 
 
 class PythonREPL(BaseModel):
@@ -95,58 +93,44 @@ def sanitize_input(query: str) -> str:
     return query
 
 
-async def run_python_file(agent, task_id: str, file_name: str) -> Dict:
-    """
-    run_python_file
-    Uses the UNSAFE exec method after reading file from local workspace
-    Look for safer method
-    """
-
-    get_cwd = agent.workspace.get_cwd_path(task_id)
-
-    return_dict = {"return_code": -1, "stdout": "", "stderr": ""}
-
-    command = f"python {file_name}"
-
-    try:
-        req = subprocess.run(command, shell=True, capture_output=True, cwd=get_cwd)
-
-        return_dict["return_code"] = req.returncode
-        return_dict["stdout"] = req.stdout.decode()
-        return_dict["stderr"] = req.stderr.decode()
-    except Exception as err:
-        # logger.error(f"subprocess call failed: {err}")
-        raise err
-
-    try:
-        return_json = json.dumps(return_dict)
-    except json.JSONDecodeError as err:
-        # logger.error(f"JSON dumps failed: {err}")
-        raise err
-    return return_json
-
-
-def run_python_code(agent, task_id: str, query: str) -> Dict:
+@ability(
+    name="run_python_code",
+    description="Executes Python code. Output is captured and returned via print statements.",
+    parameters=[
+        {
+            "name": "query",
+            "description": "Code snippet to run",
+            "type": "string",
+            "required": True,
+        }
+    ],
+    output_type="dict[str, Any]",
+)
+async def run_python_code(agent, task_id: str, query: str) -> str:
     """
     Run a python code
     """
     query = sanitize_input(query)
-    # base_path = agent.workspace.base_path
+    working_dir = agent.workspace._resolve_path(task_id, "/")
+    working_dir.mkdir(exist_ok=True)
+
     python_repl = PythonREPL(
-        _globals=globals(),
-        _locals=None,  # _working_directory=base_path
+        _globals=globals(), _locals=None, _working_directory=str(working_dir)
     )
-    return python_repl.run(query)
+    before_files = set(os.listdir(working_dir))
+    output = python_repl.run(query)
+    after_files = set(os.listdir(working_dir))
 
-
-if __name__ == "__main__":
-    code = """
-import pandas as pd; 
-from io import BytesIO; 
-df = pd.read_csv(BytesIO(b'id,name,timestamp\\n3,Alice,2023-09-25 14:10:00\\n1,Bob,2023-09-24 12:05:00\\n2,Charlie,2023-09-24 12:10:00\\n4,David,2023-09-26 16:20:00\\n')); 
-sorted_df = df.sort_values('timestamp'); 
-sorted_df.to_csv("output.csv", index=False)
-print(sorted_df)
-    """
-    print(run_python_code("gel", "ge", code))
-    print(os.getcwd())
+    new_files = after_files - before_files
+    logger.info(f"{str(after_files)} - {str(before_files)}")
+    artifacts = []
+    for file_name in new_files:
+        file_path = working_dir / file_name
+        artifact = await agent.db.create_artifact(
+            task_id=task_id,
+            file_name=str(file_path).split("/")[-1],
+            relative_path="",
+            agent_created=True,
+        )
+        artifacts.append(artifact)
+    return {"stdout": output, "artifacts": artifacts}
