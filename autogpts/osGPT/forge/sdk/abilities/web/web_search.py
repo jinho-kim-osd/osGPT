@@ -40,12 +40,13 @@ async def web_search(agent, task_id: str, query: str) -> str:
         if not query:
             return json.dumps(search_results)
 
-        results = GoogleSearch(
+        search = GoogleSearch(
             {
+                "engine": "google",
                 "q": query,
-                "location": "Austin,Texas",
             }
         )
+        results = search.get_dict()
         search_results = list(islice(results["organic_results"], num_results))
 
         if search_results:

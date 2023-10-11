@@ -53,6 +53,7 @@ class StepModel(Base):
     task_id = Column(String, ForeignKey("tasks.task_id"))
     name = Column(String)
     input = Column(String)
+    output = Column(String)
     status = Column(String)
     is_last = Column(Boolean, default=False)
     created_at = Column(DateTime, default=datetime.datetime.utcnow)
@@ -110,6 +111,7 @@ def convert_to_step(step_model: StepModel, debug_enabled: bool = False) -> Step:
         modified_at=step_model.modified_at,
         name=step_model.name,
         input=step_model.input,
+        output=step_model.output,
         status=status,
         artifacts=step_artifacts,
         is_last=step_model.is_last == 1,
@@ -253,6 +255,60 @@ class AgentDB:
             raise
         except Exception as e:
             LOG.error(f"Unexpected error while creating step: {e}")
+            raise
+
+    async def update_artifact(
+        self,
+        artifact_id: str,
+        task_id: Optional[str] = None,
+        file_name: Optional[str] = None,
+        relative_path: Optional[str] = None,
+        agent_created: Optional[bool] = None,
+        step_id: Optional[str] = None,
+    ) -> Artifact:
+        if self.debug_enabled:
+            LOG.debug(f"Updating artifact with artifact_id: {artifact_id}")
+
+        try:
+            with self.Session() as session:
+                artifact = (
+                    session.query(ArtifactModel)
+                    .filter_by(artifact_id=artifact_id)
+                    .first()
+                )
+
+                if not artifact:
+                    LOG.error(f"Artifact not found with artifact_id: {artifact_id}")
+                    raise NotFoundError("Artifact not found")
+
+                if task_id is not None:
+                    artifact.task_id = task_id
+                if file_name is not None:
+                    artifact.file_name = file_name
+                if relative_path is not None:
+                    artifact.relative_path = relative_path
+                if agent_created is not None:
+                    artifact.agent_created = agent_created
+                if step_id is not None:
+                    artifact.step_id = step_id
+
+                session.commit()
+                session.refresh(artifact)
+
+                if self.debug_enabled:
+                    LOG.debug(
+                        f"Updated artifact with artifact_id: {artifact.artifact_id}"
+                    )
+
+                return convert_to_artifact(artifact)
+
+        except SQLAlchemyError as e:
+            LOG.error(f"SQLAlchemy error while updating artifact: {e}")
+            raise
+        except NotFoundError as e:
+            raise
+        except Exception as e:
+            LOG.error(f"Unexpected error while updating artifact: {e}")
             raise
 
     async def get_task(self, task_id: int) -> Task:

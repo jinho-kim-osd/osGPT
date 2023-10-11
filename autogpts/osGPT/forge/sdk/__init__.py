@@ -21,6 +21,7 @@ from .schema import (
     TaskRequestBody,
     TaskStepsListResponse,
 )
+from .ai_actions import Action
 from .workspace import LocalWorkspace, Workspace
 from .errors import *
 from .memory.chroma_memstore import ChromaMemStore
