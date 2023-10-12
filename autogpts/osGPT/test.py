@@ -2,7 +2,7 @@ import os
 import asyncio
 
 from forge.sdk import LocalWorkspace, TaskRequestBody, StepRequestBody
-from forge.agent import ForgeAgent
+from autogpts.osGPT.forge.slave_agent import ForgeAgent
 from forge.db import ForgeDatabase
 
 database_name = os.getenv("DATABASE_STRING")

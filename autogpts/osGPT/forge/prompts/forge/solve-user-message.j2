@@ -1,0 +1,18 @@
+# Objective
+Follow the initial plan provided. 
+If necessary, adjust the args of ability based on the outcomes of the previous steps to optimize the results.
+
+# Task
+{{ task.input }}
+
+# Initial Plan for Current Step
+{{ current_step.input }}
+
+{% if steps %}
+## Steps
+Below is a summary of all steps executed so far in this task. 
+{% for step in steps %}
+- Step {{ loop.index }}: {{ step.name }} (Status: {{ step.status }})
+observation: {{ step.output }}
+{% endfor %}
+{% endif %}

@@ -1,11 +1,14 @@
 """
 Ability for running Python code
 """
+
 from typing import Dict, Optional
 import os
 import re
 import multiprocessing
 import sys
+import ast
+from contextlib import redirect_stdout
 from io import StringIO
 
 from pydantic import BaseModel, Field
@@ -17,8 +20,6 @@ logger = ForgeLogger(__name__)
 
 
 class PythonREPL(BaseModel):
-    """Simulates a standalone Python REPL."""
-
     globals: Optional[Dict] = Field(default_factory=dict, alias="_globals")
     locals: Optional[Dict] = Field(default_factory=dict, alias="_locals")
     working_directory: Optional[str] = Field(default=None, alias="_working_directory")
@@ -75,6 +76,48 @@ class PythonREPL(BaseModel):
         return queue.get()
 
 
+class PythonAstREPLTool(BaseModel):
+    globals: Optional[Dict] = Field(default_factory=dict, alias="_globals")
+    locals: Optional[Dict] = Field(default_factory=dict, alias="_locals")
+    working_directory: Optional[str] = Field(default=None, alias="_working_directory")
+
+    def set_working_directory(self, path: str) -> None:
+        if os.path.isdir(path):
+            self.working_directory = path
+        else:
+            print(f"Error: {path} is not a valid directory.")
+
+    def run(
+        self,
+        query: str,
+    ) -> str:
+        """Use the tool."""
+        try:
+            if self.working_directory:
+                os.chdir(self.working_directory)
+
+            query = sanitize_input(query)
+            tree = ast.parse(query)
+            module = ast.Module(tree.body[:-1], type_ignores=[])
+            exec(ast.unparse(module), self.globals, self.locals)  # type: ignore
+            module_end = ast.Module(tree.body[-1:], type_ignores=[])
+            module_end_str = ast.unparse(module_end)  # type: ignore
+            io_buffer = StringIO()
+            try:
+                with redirect_stdout(io_buffer):
+                    ret = eval(module_end_str, self.globals, self.locals)
+                    if ret is None:
+                        return io_buffer.getvalue()
+                    else:
+                        return ret
+            except Exception:
+                with redirect_stdout(io_buffer):
+                    exec(module_end_str, self.globals, self.locals)
+                return io_buffer.getvalue()
+        except Exception as e:
+            return "{}: {}".format(type(e).__name__, str(e))
+
+
 def sanitize_input(query: str) -> str:
     """Sanitize input to the python REPL.
     Remove whitespace, backtick & python (if llm mistakes python console as terminal)
@@ -95,7 +138,13 @@ def sanitize_input(query: str) -> str:
 
 @ability(
     name="run_python_code",
-    description="Executes Python code. Output is captured and returned via print statements.",
+    description=(
+        "A Python shell. Use this to execute python commands. "
+        "Input should be a valid python command. "
+        "When using this tool, sometimes output is abbreviated - "
+        "make sure it does not look abbreviated before using it in your answer."
+    ),
+    # description="Execute Python code. Receive results exclusively through print statements",
     parameters=[
         {
             "name": "query",
@@ -114,7 +163,7 @@ async def run_python_code(agent, task_id: str, query: str) -> str:
     working_dir = agent.workspace._resolve_path(task_id, "/")
     working_dir.mkdir(exist_ok=True)
 
-    python_repl = PythonREPL(
+    python_repl = PythonAstREPLTool(
         _globals=globals(), _locals=None, _working_directory=str(working_dir)
     )
     before_files = set(os.listdir(working_dir))
@@ -122,7 +171,6 @@ async def run_python_code(agent, task_id: str, query: str) -> str:
     after_files = set(os.listdir(working_dir))
 
     new_files = after_files - before_files
-    logger.info(f"{str(after_files)} - {str(before_files)}")
     artifacts = []
     for file_name in new_files:
         file_path = working_dir / file_name
