@@ -1,6 +1,6 @@
-from typing import Optional
+from typing import Optional, List
 
-from .sdk import AgentDB, ForgeLogger, NotFoundError, Base
+from .sdk import AgentDB, ForgeLogger, NotFoundError, Base, Message
 from sqlalchemy.exc import SQLAlchemyError
 
 import datetime
@@ -19,10 +19,9 @@ class ChatModel(Base):
     msg_id = Column(String, primary_key=True, index=True)
     task_id = Column(String)
     step_id = Column(String, nullable=True)
-    role = Column(String)
     content = Column(String)
-    sender = Column(String, nullable=True)
-    recipient = Column(String, nullable=True)
+    sender_id = Column(String, nullable=True)
+    recipient_id = Column(String, nullable=True)
     created_at = Column(DateTime, default=datetime.datetime.utcnow)
     modified_at = Column(
         DateTime, default=datetime.datetime.utcnow, onupdate=datetime.datetime.utcnow
@@ -46,11 +45,10 @@ class ForgeDatabase(AgentDB):
     async def add_chat_message(
         self,
         task_id,
-        role,
         content,
         step_id: Optional[str] = None,
-        sender: Optional[str] = None,
-        recipient: Optional[str] = None,
+        sender_id: Optional[str] = None,
+        recipient_id: Optional[str] = None,
     ):
         if self.debug_enabled:
             LOG.debug("Creating new task")
@@ -60,10 +58,9 @@ class ForgeDatabase(AgentDB):
                     msg_id=str(uuid.uuid4()),
                     task_id=task_id,
                     step_id=step_id,
-                    role=role,
                     content=content,
-                    sender=sender,
-                    recipient=recipient,
+                    sender_id=sender_id,
+                    recipient_id=recipient_id,
                 )
                 session.add(mew_msg)
                 session.commit()
@@ -82,7 +79,9 @@ class ForgeDatabase(AgentDB):
             LOG.error(f"Unexpected error while creating task: {e}")
             raise
 
-    async def get_chat_history(self, task_id: str, step_id: Optional[str] = None):
+    async def get_chat_history(
+        self, task_id: str, step_id: Optional[str] = None
+    ) -> List[Message]:
         if self.debug_enabled:
             LOG.debug(
                 f"Getting chat history with task_id: {task_id}, step_id: {step_id}"
@@ -97,7 +96,14 @@ class ForgeDatabase(AgentDB):
                 messages = query.order_by(ChatModel.created_at).all()
 
                 if messages:
-                    return [{"role": m.role, "content": m.content} for m in messages]
+                    return [
+                        Message(
+                            content=m.content,
+                            sender_id=m.sender_id,
+                            recipient_id=m.recipient_id,
+                        )
+                        for m in messages
+                    ]
                 else:
                     LOG.info(
                         f"Chat history not found with task_id: {task_id}, step_id: {step_id}"

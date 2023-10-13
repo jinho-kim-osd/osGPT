@@ -21,6 +21,7 @@ from .schema import (
     TaskRequestBody,
     TaskStepsListResponse,
 )
+from .message import Message
 from .ai_actions import Action
 from .workspace import LocalWorkspace, Workspace
 from .errors import *

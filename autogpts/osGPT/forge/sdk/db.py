@@ -367,7 +367,8 @@ class AgentDB:
         self,
         task_id: str,
         step_id: str,
-        status: str,
+        status: Optional[str] = None,
+        name: Optional[str] = None,
         output: Optional[str] = None,
         additional_input: Optional[Dict[str, Any]] = {},
     ) -> Step:
@@ -380,9 +381,14 @@ class AgentDB:
                     .filter_by(task_id=task_id, step_id=step_id)
                     .first()
                 ):
-                    step.status = status
-                    step.additional_input = additional_input
-                    step.output = output
+                    if status:
+                        step.status = status
+                    if additional_input:
+                        step.additional_input = additional_input
+                    if name:
+                        step.name = name
+                    if output:
+                        step.output = output
                     session.commit()
                     return await self.get_step(task_id, step_id)
                 else:
