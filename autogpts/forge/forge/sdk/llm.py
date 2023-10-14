@@ -17,7 +17,7 @@ async def chat_completion_request(
     try:
         kwargs["model"] = model
         kwargs["messages"] = messages
-
+        print(**kwargs)
         resp = await acompletion(**kwargs)
         return resp
     except AuthenticationError as e:

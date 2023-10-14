@@ -2,6 +2,10 @@ from typing import List
 
 from ..registry import ability
 
+from forge.sdk import ForgeLogger
+
+logger = ForgeLogger(__name__)
+
 
 @ability(
     name="list_files",

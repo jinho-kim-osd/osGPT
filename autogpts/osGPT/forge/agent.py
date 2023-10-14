@@ -1,7 +1,8 @@
 import json
+import re
 from abc import abstractmethod
 from collections import defaultdict
-from typing import Optional, Tuple, List, Any, Union, Literal, Dict
+from typing import Optional, Tuple, List, Any, Dict
 
 from forge.sdk import (
     Agent,
@@ -10,25 +11,21 @@ from forge.sdk import (
     Workspace,
     ForgeLogger,
     Task,
-    TaskRequestBody,
     Artifact,
     PromptEngine,
     Status,
-    Action,
     Message,
 )
 from forge.db import ForgeDatabase
 from .ability_registry import ForgeAbilityRegister
-from .utils import (
-    gpt4_chat_completion_request,
-    extract_top_level_json,
-    replace_prompt_placeholders,
-)
+from .utils import gpt4_chat_completion_request, camel_to_snake
 
 logger = ForgeLogger(__name__)
 
+ROLE_MATCHING_PATTERN = "# ROLE\n(.*?)\n# "
 
-class ForgeAgentBase(Agent):
+
+class ForgeAgent(Agent):
     MAX_RETRIES = 5
 
     def __init__(
@@ -38,46 +35,42 @@ class ForgeAgentBase(Agent):
         name: str,
         ability_names: Optional[List[str]] = None,
         system_message: Optional[str] = None,
-        use_prompt_engine: bool = True,
     ):
         self.db = database
         self.workspace = workspace
         self.abilities = ForgeAbilityRegister(self, ability_names)
         self.name = name
         self.chat_messages: List[Message] = defaultdict(list)
-        self.prompt_engine = PromptEngine(self.name)
-        self.use_prompt_engine = use_prompt_engine
+        if system_message is None:
+            self.prompt_engine = PromptEngine("forge")
+            system_message = self.prompt_engine.load_prompt(
+                camel_to_snake(self.name), name=self.name
+            )
+
         self._system_message = system_message
 
     @property
     def openai_chat_messages(
-        self, actor: Optional["ForgeAgentBase"] = None
+        self, actor: Optional["ForgeAgent"] = None
     ) -> List[Dict[str, str]]:
         if actor is None:
             actor = self
         return [message.to_openai_message(actor.name) for message in self.chat_messages]
 
-    # @abstractmethod
-    # def step(self, task: Task | None, step: Step | None):
-    #     step.additional_input.get("sender", None)
-    #     step.additional_input.get("recipient", None)
-    #     step.additional_input.get("action", None)
-    #     step.additional_input.get("ability", None)
-
-    #     if step:
-    #         step_handler = self.get_step_handler(step)
-    #         step_handler.apply_action()
-    #     else:
-    #         self.create_step()
-    #     raise NotImplementedError
+    @property
+    def system_message(self) -> Message:
+        return Message(
+            content=self._system_message, sender_id=self.name, recipient_id=self.name
+        )
 
     @property
-    def system_message(self, **kwargs) -> Message:
-        if self._system_message:
-            content = self._system_message
-        else:
-            content = self.prompt_engine.load_prompt("system-message", **kwargs)
-        return Message(content=content, sender_id=self.name, recipient_id=self.name)
+    def role(self) -> Optional[str]:
+        role_content = re.search(
+            ROLE_MATCHING_PATTERN, self.system_message.content, re.DOTALL
+        )
+        if role_content:
+            return role_content.group(1).strip()
+        return None
 
     async def update_system_message(self, content: str):
         self._system_message = content
@@ -97,7 +90,7 @@ class ForgeAgentBase(Agent):
         self,
         task_id: str,
         content: str,
-        recipient: Optional["ForgeAgentBase"],
+        recipient: Optional["ForgeAgent"],
         step_id: Optional[str] = None,
         request_reply: bool = False,
     ) -> Optional[Any]:
@@ -115,7 +108,7 @@ class ForgeAgentBase(Agent):
         self,
         task_id: str,
         content: str,
-        sender: "ForgeAgentBase",
+        sender: "ForgeAgent",
         step_id: Optional[str] = None,
         request_reply: bool = False,
     ) -> None:
@@ -138,49 +131,100 @@ class ForgeAgentBase(Agent):
         task_id: str,
         step_id: Optional[str] = None,
         messages: Optional[List[Dict]] = None,
-        sender: Optional["ForgeAgentBase"] = None,
-        formatter: Optional[str] = None,
+        sender: Optional["ForgeAgent"] = None,
     ) -> Any:
         if messages is None:
             messages = self.chat_messages[sender.name]
 
         for _ in range(self.MAX_RETRIES):
+            task = await self.db.get_task(task_id=task_id)
             response = await self.chat_completion_request(
-                [self.system_message] + messages, sender
+                task_id,
+                step_id,
+                [self.system_message] + messages,
+                sender,
             )
-
-            if formatter == "json":
-                try:
-                    response = extract_top_level_json(response)
-                except ValueError as e:
-                    error_message = str(e)
-                    logger.error(f"Error: {error_message}")
             logger.info(f"Request Chat Reponse[{self.name}]: " + str(response))
             return response
 
     async def chat_completion_request(
         self,
+        task_id: Optional[str] = None,
+        step_id: Optional[str] = None,
         messages: Optional[List[Message]] = None,
-        sender: Optional["ForgeAgentBase"] = None,
+        sender: Optional["ForgeAgent"] = None,
     ) -> str:
+        import asyncio
+
+        # TODO: Control OpenAI Rate limit
+        # asyncio.sleep(12)
         if messages is None:
             messages = self.chat_messages[sender.name]
         logger.info(f"Messages[{self.name}]: " + str(messages))
         openai_messages = [message.to_openai_message(self.name) for message in messages]
         logger.info(f"OpenAI Messages[{self.name}]: " + str(openai_messages))
 
-        ## TODO: determine_function_call
-        response = await gpt4_chat_completion_request(openai_messages)
+        functions = self.abilities.list_abilities_for_function_calling()
+        response = await gpt4_chat_completion_request(
+            openai_messages, functions=functions
+        )
+        if "function_call" in response:
+            response = await self._handle_function_call(
+                response, task_id, step_id, openai_messages, sender.name
+            )
         logger.info(f"Response[{self.name}]: " + str(response))
-        return response
+        return response["content"]
 
-    async def check_ability_to_run(
+    async def _handle_function_call(
         self,
-        messages: Optional[List[Message]] = None,
-        sender: Optional["ForgeAgentBase"] = None,
-    ):
-        openai_messages = [message.to_openai_message(self.name) for message in messages]
-        ...
+        response: Dict[str, Any],
+        task_id: Optional[str] = None,
+        step_id: Optional[str] = None,
+        openai_messages: Optional[List[Dict[str, Any]]] = None,
+        conversation_id: Optional[str] = None,
+    ) -> str:
+        fn_name = response["function_call"]["name"]
+        logger.info(f"Debug Function Response[{self.name}]: " + str(response))
+        fn_args = json.loads(response["function_call"]["arguments"])
+        logger.info(f"Function Calling[{self.name}]: {fn_name}({fn_args})")
+        fn_response = await self.abilities.run_ability(task_id, fn_name, **fn_args)
+        if isinstance(fn_response, Artifact):
+            await self.db.update_artifact(
+                artifact_id=fn_response.artifact_id, step_id=step_id
+            )
+            fn_response = fn_response.dict(exclude_none=True)
+        # TODO: find better approach
+        elif isinstance(fn_response, dict):
+            artifacts: List[Artifact] = fn_response.pop("artifacts", [])
+            for artifact in artifacts:
+                await self.db.update_artifact(
+                    artifact_id=artifact.artifact_id, step_id=step_id
+                )
+        elif isinstance(fn_response, list):
+            for item in fn_response:
+                if isinstance(item, Artifact):
+                    await self.db.update_artifact(
+                        artifact_id=item.artifact_id, step_id=step_id
+                    )
+                    index = fn_response.index(item)
+                    fn_response[index] = item.dict(exclude_none=True)
+        logger.info(str(fn_response))
+        if fn_response is not None:
+            fn_response = str(fn_response)
+
+        logger.info(f"Function Response[{self.name}]: {fn_response}")
+        message = Message(
+            content=fn_response,
+            sender_id=self.name,
+            recipient_id=self.name,
+            function_call={"name": fn_name, "arguments": fn_args},
+        )
+        if conversation_id is None:
+            conversation_id = self.name
+        await self._add_message(message, conversation_id, task_id, step_id)
+        openai_messages.append(message.to_openai_message(fn_name))
+        response = await gpt4_chat_completion_request(openai_messages)
+        return response
 
     async def _run_ability(
         self, task: Task, step: Step, ability: Dict[str, Any]
@@ -214,12 +258,6 @@ class ForgeAgentBase(Agent):
 
     @abstractmethod
     async def execute_step(self, task_id: str, step_request: StepRequestBody) -> Step:
-        raise NotImplementedError
-
-    @abstractmethod
-    async def _handle_action(
-        self, action: Action, step: Optional[Step] = None
-    ) -> Step | Action:
         raise NotImplementedError
 
     def _categorize_steps(self, steps: List[Step]) -> Tuple[List[Step], List[Step]]:

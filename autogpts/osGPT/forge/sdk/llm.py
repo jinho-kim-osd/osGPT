@@ -1,5 +1,6 @@
 import typing
 
+import time
 import openai
 from tenacity import retry, stop_after_attempt, wait_random_exponential
 

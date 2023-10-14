@@ -2,7 +2,7 @@ import glob
 import importlib
 import inspect
 import os
-from typing import Any, Callable, List
+from typing import Any, Callable, List, Dict
 
 import pydantic
 
@@ -135,6 +135,31 @@ class AbilityRegister:
 
     def list_abilities(self) -> List[Ability]:
         return self.abilities
+
+    def list_abilities_for_function_calling(self) -> Dict[str, Any]:
+        abilities = []
+        for ability in self.abilities.values():
+            properties = {}
+            required = []
+            for param in ability.parameters:
+                properties[param.name] = {
+                    "type": param.type,
+                    "description": param.description,
+                }
+                if param.required:
+                    required.append(param.name)
+            abilities.append(
+                {
+                    "name": ability.name,
+                    "description": ability.description,
+                    "parameters": {
+                        "type": "object",
+                        "properties": properties,
+                        "required": required,
+                    },
+                }
+            )
+        return abilities
 
     def list_abilities_for_prompt(self) -> List[str]:
         return [str(ability) for ability in self.abilities.values()]

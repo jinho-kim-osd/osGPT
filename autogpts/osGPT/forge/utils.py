@@ -1,6 +1,6 @@
-from typing import Optional, Tuple, List, Any, Union, Literal, Dict
+from typing import Optional, List, Any, Union, Dict
 import json
-import regex
+import re
 
 from forge.sdk import chat_completion_request, ForgeLogger
 
@@ -12,7 +12,9 @@ async def gpt4_chat_completion_request(
     max_tokens: Optional[int] = None,
     stop: Optional[Union[str, List[str]]] = None,
     n: int = 1,
-) -> Union[str, List[str]]:
+    functions: List[Dict[str, Any]] = [],
+    **kwargs,
+) -> Union[Dict[str, str], Dict[str, Dict]]:
     response = await chat_completion_request(
         messages=messages,
         model="gpt-4",
@@ -23,13 +25,20 @@ async def gpt4_chat_completion_request(
         max_tokens=max_tokens,
         stop=stop,
         n=n,
+        functions=functions,
+        **kwargs,
     )
     if n > 1:
         res: List[str] = [""] * n
         for choice in response.choices:
-            res[choice.index] = choice["message"]["content"]
+            res[choice.index] = choice["message"]
         return res
-    return response.choices[0]["message"]["content"]
+    return response.choices[0]["message"]
+
+
+def camel_to_snake(name: str) -> str:
+    name = re.sub("(.)([A-Z][a-z]+)", r"\1_\2", name)
+    return re.sub("([a-z0-9])([A-Z])", r"\1_\2", name).lower()
 
 
 def is_valid_json(json_str: str) -> bool:
@@ -41,7 +50,7 @@ def is_valid_json(json_str: str) -> bool:
 
 
 def replace_prompt_placeholders(prompt: str, **variables: Any) -> str:
-    placeholders = regex.findall(r"\$\{(.+?)\}", prompt)
+    placeholders = re.findall(r"\$\{(.+?)\}", prompt)
     if len(placeholders) == 0:
         return prompt
 
@@ -60,7 +69,7 @@ def replace_prompt_placeholders(prompt: str, **variables: Any) -> str:
 
 def extract_top_level_json(text: str) -> Optional[Dict]:
     text = text.replace(".encode()", "").replace(".encode('utf-8')", "")
-    json_candidates = regex.findall(r"(?<!\\)(?:\\\\)*\{(?:[^{}]|(?R))*\}", text)
+    json_candidates = re.findall(r"(?<!\\)(?:\\\\)*\{(?:[^{}]|(?R))*\}", text)
 
     for candidate in json_candidates:
         if is_valid_json(candidate):
