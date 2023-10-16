@@ -250,7 +250,10 @@ class ForgeAgent(Agent):
         if fn_response is not None:
             fn_response = str(fn_response)
             if len(fn_response) > MAX_FUNCTION_RESPONSE_LENGTH:
-                fn_response = fn_response[: MAX_FUNCTION_RESPONSE_LENGTH - 3] + "[...]"
+                fn_response = (
+                    fn_response[: MAX_FUNCTION_RESPONSE_LENGTH - 10]
+                    + "...(abbreviated)"
+                )
 
         logger.info(f"Function Response[{self.name}]: {fn_response}")
         message = Message(

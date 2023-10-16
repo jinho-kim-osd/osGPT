@@ -211,8 +211,9 @@ class MasterAgent(ForgeAgent):
         )
 
         # Extract Recipient IDs from reply message
-        recipient_ids = re.findall(RECIPIENT_MATCHING_PATTERN, reply_content)
-        if recipient_ids is None:
+        if is_whisper_mode:
+            recipient_ids = re.findall(RECIPIENT_MATCHING_PATTERN, reply_content)
+        else:
             recipient_ids = self.agent_handles
 
         for recipient_id in recipient_ids:

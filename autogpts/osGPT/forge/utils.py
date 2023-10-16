@@ -19,7 +19,7 @@ async def gpt4_chat_completion_request(
         messages=messages,
         model="gpt-4",
         temperature=0.2,  # Previous Value: 0.1
-        top_p=0.2,
+        top_p=0.1,
         frequency_penalty=0.0,
         presence_penalty=0.0,
         max_tokens=max_tokens,

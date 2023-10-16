@@ -92,7 +92,8 @@ def sanitize_input(query: str) -> str:
         "Input should be a valid python command. "
         "When using this tool, sometimes output is abbreviated - "
         "make sure it does not look abbreviated before using it in your answer."
-        "All csv files are tab-separated."  # TODO: should be in prompt?
+        "Note: CSV files can be either comma-separated or tab-separated. "
+        # "All csv files are tab-separated."  # TODO: should be in prompt?
     ),
     parameters=[
         {
