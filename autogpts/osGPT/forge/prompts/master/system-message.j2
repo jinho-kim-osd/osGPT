@@ -5,13 +5,16 @@ Your goal is to select an appropriate role to play in a role-playing game (RPG).
 You are a participant in an RPG with the following available roles:
 ## AVAILABLE ROLES (NAME-ROLE)
 {% for agent in agents %}
-- {{ agent.name }}: {{ agent.role }}
+- {{ agent.handle }}: {{ agent.role }}
 {% endfor %}
 
-# PRIORITY
-The Task Manager holds the priority to respond first to initial task requests from the user, ensuring that user requirements are precisely articulated and understood before proceeding.
+# COMMUNICATION DIAGRAM
++------++  +--------------+   +----------+
+| User |<->| Task Manager |<->| Engineer |
++------+   +--------------+   +----------+
+- The User and Engineer communicate exclusively with the Task Manager.
+- Only engage the user directly when they are explicitly mentioned. Avoid addressing the user unless they are tagged.
 
-# INSTRUCTIONS
-1. Carefully review the provided conversation to grasp the context and identify the roles in play.
-2. Evaluate the roles in {{ agent_names }} and consider their fit in the ongoing narrative.
-3. If the conversation can be extended, select a role from {{ agent_names }} that best fits the context and return only the role name. If the conversation has reached its conclusion, respond with <TERMINATE>.
+# INTERACTION
+## SCHEMA
+- The '@' mention interface is designated for targeted responses and clear communication lines.

@@ -1,6 +1,7 @@
 from typing import Optional, Dict, Any
 
-from pydantic import BaseModel
+from datetime import datetime
+from pydantic import BaseModel, Field
 
 
 class Message(BaseModel):
@@ -8,19 +9,26 @@ class Message(BaseModel):
     sender_id: Optional[str]
     recipient_id: Optional[str]
     function_call: Optional[Dict[str, Any]]
+    created_at: datetime = Field(default_factory=datetime.utcnow)
 
     def to_openai_message(self, actor_id: Optional[str] = None) -> Dict[str, str]:
-        if self.sender_id == self.recipient_id:
-            role = "system" if self.function_call is None else "function"
-            name = actor_id
-        elif self.sender_id == actor_id:
+        if self.function_call:
+            role = "function"
+        elif self.sender_id == self.recipient_id:
+            role = "system"
+        elif actor_id == self.sender_id:
             role = "assistant"
-            name = self.recipient_id
-        else:
+        # actor_id,
+        elif actor_id in self.recipient_id:
             role = "user"
-            name = self.sender_id
-        # return {"role": role, "content": self.content, "name": name}
-        openai_message = {"role": role, "content": self.content}
+        elif actor_id not in [self.sender_id, self.recipient_id]:  # Other Agent
+            role = "user"
+        else:
+            raise ValueError(f"Error: {actor_id} {self.sender_id} {self.recipient_id}")
+        openai_message = {
+            "role": role,
+            "content": self.content,
+        }
         if role == "function":
-            openai_message["name"] = actor_id
+            openai_message["name"] = self.function_call["name"]
         return openai_message

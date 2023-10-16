@@ -18,14 +18,15 @@ async def gpt4_chat_completion_request(
     response = await chat_completion_request(
         messages=messages,
         model="gpt-4",
-        temperature=0.0,
-        top_p=1,
+        temperature=0.2,  # Previous Value: 0.1
+        top_p=0.2,
         frequency_penalty=0.0,
         presence_penalty=0.0,
         max_tokens=max_tokens,
         stop=stop,
         n=n,
         functions=functions,
+        request_timeout=20,
         **kwargs,
     )
     if n > 1:
@@ -37,8 +38,9 @@ async def gpt4_chat_completion_request(
 
 
 def camel_to_snake(name: str) -> str:
-    name = re.sub("(.)([A-Z][a-z]+)", r"\1_\2", name)
-    return re.sub("([a-z0-9])([A-Z])", r"\1_\2", name).lower()
+    name = re.sub(r"([a-z0-9])([A-Z])", r"\1_\2", name)
+    name = re.sub(r"\s+", "_", name)
+    return name.lower()
 
 
 def is_valid_json(json_str: str) -> bool:

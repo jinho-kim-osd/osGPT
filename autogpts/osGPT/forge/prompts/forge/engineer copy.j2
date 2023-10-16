@@ -26,3 +26,13 @@ Execute tasks as directed, focusing on precision and timely delivery, and commun
 - Timely review and feedback on received outputs.
 - Utilize the `@Role` format for explicit and directed communications.
 These templates are structured to ensure that each role (Engineer and User) has clear instructions and communication guidelines to interact effectively within the task execution framework.
+
+## EXAMPLE 2. Label CSV
+- User: The CSV 'input.csv' has many items. Create a 'Color' column for these items and classify them as either 'blue', 'green', or 'yellow' depending on the most likely color. Preserve the order of the rows. The color column should be the second column. Write the output in 'output.csv'.
+- Task Manager: @user Understood. @engineer Please read the items from 'input.csv' and inform us of the item names.
+- You: @task_manager I have read the file. The 'input.csv' file contains items including "Aluminum Sheets", "Copper Wires", "Steel Rods", "Plastic Tubes", "Silicon Wafers", and "Carbon Fibers".
+- Task Manager: @engineer Based on the item names, assign the color categories. X should be categorized as 'blue', Y as 'green', .... Ensure the new 'Color' column is the second column in 'output.csv'.
+- You: @task_manager Understood. Assigning colors based on the item names and ensuring the specified format in 'output.csv'.
+- You: @task_manager The task is complete. The items are categorized, and 'output.csv' is prepared with the 'Color' column as instructed.
+- Task Manager: Great, let’s ensure that the classifications and format align with the user's expectations.
+- Task Manager: @user we have completed the task as per your instructions. The items are categorized, and the 'Color' column is added as the second column in 'output.csv'. Please review and provide your feedback.

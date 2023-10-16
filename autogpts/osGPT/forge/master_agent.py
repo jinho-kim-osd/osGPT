@@ -1,4 +1,5 @@
 from typing import Optional, List
+import re
 
 from forge.sdk import (
     Agent,
@@ -9,16 +10,17 @@ from forge.sdk import (
     Task,
     TaskRequestBody,
     PromptEngine,
-    Artifact,
     Message,
 )
 from forge.db import ForgeDatabase
 from .agent import ForgeAgent
+from .user_proxy_agent import UserProxyAgent
 
 logger = ForgeLogger(__name__)
 
 
 TERMINATION_WORD = "<TERMINATE>"
+RECIPIENT_MATCHING_PATTERN = "@(\w+)"
 
 
 class MasterAgent(ForgeAgent):
@@ -29,10 +31,8 @@ class MasterAgent(ForgeAgent):
         name: str = "Master",
         ability_names: Optional[List[str]] = None,
     ):
-        self.user_agent = ForgeAgent(
-            database,
-            workspace,
-            name="User",
+        self.user_agent = UserProxyAgent(
+            database, workspace, name="User", ability_names=["read_file", "list_files"]
         )
         self.agents: List[ForgeAgent] = [
             self.user_agent,
@@ -40,19 +40,33 @@ class MasterAgent(ForgeAgent):
                 database,
                 workspace,
                 name="Engineer",
-                ability_names=["run_python_code", "read_file", "list_files"],
+                ability_names=[
+                    "run_python_code",
+                    "read_file",
+                    "list_files",
+                ],
             ),
             ForgeAgent(
                 database,
                 workspace,
-                name="TaskManager",
+                name="Task Manager",
+                ability_names=["read_file", "list_files"],
             ),
         ]
+        super().__init__(database, workspace, name, ability_names)
         self.prompt_engine = PromptEngine("master")
-        system_message = self.prompt_engine.load_prompt(
-            "system-message", agents=self.agents, agent_names=self.agent_names
+
+    def _load_system_prompt(self, **kwargs) -> PromptEngine:
+        return self.prompt_engine.load_prompt(
+            "system-message",
+            name=self.name,
+            agents=self.agents,
+            **kwargs,
         )
-        super().__init__(database, workspace, name, ability_names, system_message)
+
+    @property
+    def agent_handles(self) -> List[str]:
+        return [agent.handle for agent in self.agents]
 
     @property
     def agent_names(self) -> List[str]:
@@ -61,50 +75,52 @@ class MasterAgent(ForgeAgent):
     def agent_by_name(self, name: str) -> ForgeAgent:
         return self.agents[self.agent_names.index(name)]
 
-    def next_agent(self, agent: Agent) -> ForgeAgent:
-        return self.agents[(self.agent_names.index(agent.name) + 1) % len(self.agents)]
+    def agent_by_handle(self, handle: str) -> ForgeAgent:
+        for agent in self.agents:
+            if agent.handle == handle:
+                return agent
+        raise ValueError(f"Not found {handle}")
 
-    async def select_speaker(
+    async def select_next_agent(
         self,
         task: Task,
         step: Step,
-        last_speaker: ForgeAgent,
     ) -> Optional[ForgeAgent]:
-        """Select the next speaker."""
-        # select_speaker_prompt = self.prompt_engine.load_prompt(
-        #     "system-message", agents=self.agents, agent_names=self.agent_names
-        # )
-        # await self.update_system_message(select_speaker_prompt)
-
         select_speaker_suffix_prompt = self.prompt_engine.load_prompt(
-            "system-message-suffix", agents=self.agents, agent_names=self.agent_names
+            "system-message-suffix",
+            agents=self.agents,
+            agent_handles=self.agent_handles,
         )
-        agent_name = await self.chat_completion_request(
+
+        formatted_messages = [
+            Message(
+                content=f"{message.sender_id}: {message.content}",
+                sender_id=message.sender_id,
+                recipient_id=message.recipient_id,
+            )
+            for message in self.chat_messages[self.handle]
+        ]
+        speaker_id = await self.chat_completion_request(
             task.task_id,
             step.step_id,
             [
                 self.system_message,
-                *self.chat_messages[self.name],
+                *formatted_messages,
                 Message(
                     content=select_speaker_suffix_prompt,
-                    sender_id=self.name,
-                    recipient_id=self.name,
+                    sender_id=self.handle,
+                    recipient_id=self.handle,
                 ),
             ],
             sender=self,
         )
 
-        agent_name = agent_name.replace("'", "")
-        if agent_name == TERMINATION_WORD:
+        speaker_id = speaker_id.replace("'", "")
+        if speaker_id in [TERMINATION_WORD, "TERMINATE"]:
             return None
-        try:
-            return self.agent_by_name(agent_name)
-        except ValueError as e:
-            logger.error(f"Error: {e}")
-            return self.next_agent(last_speaker)
+        return self.agent_by_handle(speaker_id)
 
     async def create_task(self, task_request: TaskRequestBody) -> Task:
-        super().reset()
         return await super().create_task(task_request)
 
     def reset(self):
@@ -126,6 +142,8 @@ class MasterAgent(ForgeAgent):
         step = await self.next_step(task_id)
         logger.info("Next Step : " + str(step))
 
+        additional_input = step_request.additional_input or {}
+        is_whisper_mode = additional_input.get("is_whisper_mode", False)
         step = await self.create_step(
             task_id,
             step_request.input,
@@ -133,61 +151,99 @@ class MasterAgent(ForgeAgent):
         )
         step = await self.db.update_step(task_id, step.step_id, "running")
 
+        # Add message Only if user input exists
         if step_request.input:
-            sender_id = self.user_agent.name
+            sender = self.user_agent
+            recipient_agents = []
+            # TODO: Resolve duplicated initial message
             message = Message(
                 content=step_request.input,
-                sender_id=sender_id,
-                recipient_id=None,
+                sender_id=sender.handle,
+                recipient_id=self.handle,
             )
-            self.chat_messages[self.name].append(message)
+            self.chat_messages[self.handle].append(message)
 
-        message: Message = self.chat_messages[self.name][-1]
-        logger.info("Last Message :" + str(message))
-        sender_id = message.sender_id
-        if sender_id == self.name:
-            last_speaker = self
-        else:
-            last_speaker = self.agent_by_name(sender_id)
-
-        # broadcast the message to all agents except the assignee
-        for agent in self.agents:
-            if agent != last_speaker:
-                await self.send_message(
-                    task_id, message.content, agent, step.step_id, request_reply=False
+            if is_whisper_mode:
+                recipient: ForgeAgent = await self.select_next_agent(task, step)
+                recipient_agents.append(recipient)
+            else:
+                recipient_agents.extend(
+                    [agent for agent in self.agents if agent != sender]
                 )
 
-        speaker = await self.select_speaker(task, step, last_speaker=last_speaker)
+            for recipient in recipient_agents:
+                message = Message(
+                    content=step_request.input,
+                    sender_id=sender.handle,
+                    recipient_id=recipient.handle,
+                )
+                await self.user_agent.send_message(
+                    task_id,
+                    message.content,
+                    recipient,
+                    step.step_id,
+                    request_reply=False,
+                )
+
+        speaker: ForgeAgent = await self.select_next_agent(task, step)
         if speaker is None:
-            logger.info("Terminated!")
+            logger.info("Step successfully completed.")
             step = await self.db.update_step(
                 task_id,
                 step.step_id,
                 "completed",
                 output=TERMINATION_WORD,
-                additional_input={"speaker": self.name},
+                additional_input={"speaker": self.handle},
             )
             step.is_last = True
             return step
-        logger.info("Speaker :" + str(speaker.name))
-        reply = await speaker.reply_message(task_id, step.step_id, sender=self)
-        logger.info("Reply :" + str(reply))
 
-        reply_message = Message(
-            content=reply,
-            sender_id=speaker.name,
-            recipient_id=self.name,
+        last_message = speaker.get_last_message()
+        logger.info(
+            f"Last Message [{last_message.sender_id} -> {last_message.recipient_id}]: {last_message.content}"
         )
-        logger.info("Reply Message :" + str(reply_message))
-        self.chat_messages[self.name].append(reply_message)  # TODO: Required?
+        sender = self.agent_by_handle(last_message.sender_id)
+        reply_content = await speaker.reply_message(
+            task_id=task_id,
+            step_id=step.step_id,
+            messages=speaker.all_chat_messages,
+            sender=sender,
+        )
+
+        # Extract Recipient IDs from reply message
+        recipient_ids = re.findall(RECIPIENT_MATCHING_PATTERN, reply_content)
+        if recipient_ids is None:
+            recipient_ids = self.agent_handles
+
+        for recipient_id in recipient_ids:
+            recipient = self.agent_by_handle(recipient_id)
+            speaker_message = Message(
+                content=reply_content,
+                sender_id=speaker.handle,
+                recipient_id=recipient.handle,
+            )
+            logger.info(
+                f"Reply Message [{speaker.name} -> {str(recipient.name)}]: {speaker_message.content}"
+            )
+            await speaker.send_message(
+                task_id=task_id,
+                content=speaker_message.content,
+                recipient=recipient,
+                step_id=step.step_id,
+                request_reply=False,
+            )
+            self.chat_messages[self.handle].append(speaker_message)
 
         # The speaker sends the message without requesting a reply
-        await speaker.send_message(task_id, reply, self, request_reply=False)
+        await self.receive(task_id, reply_content, sender, step.step_id, False)
         step = await self.db.update_step(
             task_id,
             step.step_id,
             "completed",
-            output=reply,
-            additional_input={"speaker": speaker.name},
+            output=reply_content,
+            additional_input={
+                "last_sender": sender.handle,
+                "speaker": speaker.handle,
+            },
         )
         return step

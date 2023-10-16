@@ -16,8 +16,6 @@ from ..registry import ability
 
 logger = ForgeLogger(__name__)
 
-MAX_TRIM_OUTPUT = 300
-
 
 @contextmanager
 def change_cwd(path: str):
@@ -94,6 +92,7 @@ def sanitize_input(query: str) -> str:
         "Input should be a valid python command. "
         "When using this tool, sometimes output is abbreviated - "
         "make sure it does not look abbreviated before using it in your answer."
+        "All csv files are tab-separated."  # TODO: should be in prompt?
     ),
     parameters=[
         {
@@ -116,11 +115,8 @@ async def run_python_code(agent, task_id: str, query: str) -> str:
     )
     before_files = set(os.listdir(working_dir))
     output = python_repl.run(query)
-    if len(output) > MAX_TRIM_OUTPUT:
-        output = output[: MAX_TRIM_OUTPUT - 3] + "[...]"
 
     after_files = set(os.listdir(working_dir))
-
     new_files = after_files - before_files
 
     artifacts = []
@@ -134,4 +130,4 @@ async def run_python_code(agent, task_id: str, query: str) -> str:
             agent_created=True,
         )
         artifacts.append(artifact)
-    return {"stdout": output, "new_files": new_files, "artifacts": artifacts}
+    return {"new_files": new_files, "artifacts": artifacts, "stdout": output}
