@@ -21,7 +21,6 @@ from .schema import (
     TaskRequestBody,
     TaskStepsListResponse,
 )
-from .message import Message
 from .workspace import LocalWorkspace, Workspace
 from .errors import *
 from .memory.chroma_memstore import ChromaMemStore

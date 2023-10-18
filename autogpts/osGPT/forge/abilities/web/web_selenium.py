@@ -35,6 +35,7 @@ from webdriver_manager.microsoft import EdgeChromiumDriverManager as EdgeDriverM
 
 
 from ..registry import ability
+from ...schema import Workspace
 from forge.sdk.errors import *
 import re
 from urllib.parse import urljoin, urlparse
@@ -101,7 +102,7 @@ class BrowsingError(CommandExecutionError):
     output_type="string",
 )
 async def read_webpage(
-    agent, task_id: str, url: str, question: str = ""
+    agent, workspace: Workspace, url: str, question: str = ""
 ) -> Tuple(str, List[str]):
     """Browse a website and return the answer and links to the user
     Args:

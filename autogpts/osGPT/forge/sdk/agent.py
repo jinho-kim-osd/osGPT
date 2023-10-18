@@ -18,14 +18,20 @@ from .routes.agent_protocol import base_router
 from .schema import *
 from .workspace import Workspace
 
+
 LOG = ForgeLogger(__name__)
 
 
 class Agent:
-    def __init__(self, database: AgentDB, workspace: Workspace):
-        self.db = database
+    def __init__(
+        self,
+        db: AgentDB,
+        workspace: Workspace,
+        ability_names: Optional[List[str]] = None,
+    ):
+        self.db = db
         self.workspace = workspace
-        self.abilities = AbilityRegister(self)
+        self.abilities = AbilityRegister(self, ability_names)
 
     def get_agent_app(self, router: APIRouter = base_router):
         """

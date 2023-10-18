@@ -1,10 +1,29 @@
 from typing import Optional, List, Any, Union, Dict
 import json
 import re
+from datetime import datetime
 
 from forge.sdk import chat_completion_request, ForgeLogger
 
 logger = ForgeLogger(__name__)
+
+
+def humanize_time(timestamp: datetime) -> str:
+    delta = datetime.now() - timestamp
+
+    if delta.total_seconds() < 60:
+        return "just now"
+
+    if delta.total_seconds() < 3600:
+        minutes = delta.total_seconds() // 60
+        return f"{int(minutes)} minute(s) ago"
+
+    if delta.total_seconds() < 86400:
+        hours = delta.total_seconds() // 3600
+        return f"{int(hours)} hour(s) ago"
+
+    days = delta.total_seconds() // 86400
+    return f"{int(days)} day(s) ago"
 
 
 async def gpt4_chat_completion_request(
@@ -18,10 +37,10 @@ async def gpt4_chat_completion_request(
     response = await chat_completion_request(
         messages=messages,
         model="gpt-4",
-        temperature=0.2,  # Previous Value: 0.1
-        top_p=0.1,
-        frequency_penalty=0.0,
-        presence_penalty=0.0,
+        temperature=0.4,
+        top_p=0.3,
+        # frequency_penalty=0.0,
+        # presence_penalty=0.0,
         max_tokens=max_tokens,
         stop=stop,
         n=n,
@@ -37,36 +56,12 @@ async def gpt4_chat_completion_request(
     return response.choices[0]["message"]
 
 
-def camel_to_snake(name: str) -> str:
-    name = re.sub(r"([a-z0-9])([A-Z])", r"\1_\2", name)
-    name = re.sub(r"\s+", "_", name)
-    return name.lower()
-
-
 def is_valid_json(json_str: str) -> bool:
     try:
         json.loads(json_str)
         return True
     except ValueError:
         return False
-
-
-def replace_prompt_placeholders(prompt: str, **variables: Any) -> str:
-    placeholders = re.findall(r"\$\{(.+?)\}", prompt)
-    if len(placeholders) == 0:
-        return prompt
-
-    for placeholder in placeholders:
-        s = placeholder.split(".")
-        variable_name = s[0]
-        variable = variables[variable_name]
-        if len(s) > 1:
-            attr = s[-1]
-            output = getattr(variable, attr, None)
-        else:
-            output = variable
-        prompt = prompt.replace(f"${{{placeholder}}}", json.dumps(output))
-    return prompt
 
 
 def extract_top_level_json(text: str) -> Optional[Dict]:

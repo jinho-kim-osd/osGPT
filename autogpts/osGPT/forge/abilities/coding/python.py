@@ -11,8 +11,9 @@ from io import StringIO
 
 from pydantic import BaseModel, Field
 
-from ...forge_log import ForgeLogger
+from forge.sdk.forge_log import ForgeLogger
 from ..registry import ability
+from ...schema import Workspace
 
 logger = ForgeLogger(__name__)
 
@@ -105,7 +106,7 @@ def sanitize_input(query: str) -> str:
     ],
     output_type="dict[str, Any]",
 )
-async def run_python_code(agent, task_id: str, query: str) -> str:
+async def run_python_code(agent, workspace: Workspace, query: str) -> str:
     """
     Run a python code
     """

@@ -1,6 +1,7 @@
 from typing import List
 
 from ..registry import ability
+from ...schema import Workspace
 
 from forge.sdk import ForgeLogger
 
@@ -20,7 +21,7 @@ logger = ForgeLogger(__name__)
     ],
     output_type="list[str]",
 )
-async def list_files(agent, task_id: str, path: str) -> List[str]:
+async def list_files(agent, workspace: Workspace, path: str) -> List[str]:
     """
     List files in a workspace directory
     """
@@ -46,7 +47,7 @@ async def list_files(agent, task_id: str, path: str) -> List[str]:
     ],
     output_type="object",
 )
-async def write_file(agent, task_id: str, file_path: str, data: str):
+async def write_file(agent, workspace: Workspace, file_path: str, data: str):
     """
     Write data to a file
     """
@@ -75,7 +76,7 @@ async def write_file(agent, task_id: str, file_path: str, data: str):
     ],
     output_type="bytes",
 )
-async def read_file(agent, task_id: str, file_path: str) -> bytes:
+async def read_file(agent, workspace: Workspace, file_path: str) -> bytes:
     """
     Read data from a file
     """

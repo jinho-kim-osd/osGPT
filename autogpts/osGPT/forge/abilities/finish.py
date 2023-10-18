@@ -1,5 +1,6 @@
-from ..forge_log import ForgeLogger
+from forge.sdk.forge_log import ForgeLogger
 from .registry import ability
+from ..schema import Workspace
 
 logger = ForgeLogger(__name__)
 
@@ -21,7 +22,7 @@ logger = ForgeLogger(__name__)
 )
 async def finish(
     agent,
-    task_id: str,
+    workspace: Workspace,
     reason: str,
 ) -> str:
     """
