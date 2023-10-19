@@ -22,6 +22,7 @@ class AbilityParameter(pydantic.BaseModel):
     description: str
     type: str
     required: bool
+    enum: Optional[List]
 
 
 class Ability(pydantic.BaseModel):
@@ -141,16 +142,23 @@ class AbilityRegister:
     def list_abilities(self) -> List[Ability]:
         return self.abilities
 
-    def list_abilities_for_function_calling(self) -> Dict[str, Any]:
+    def list_abilities_for_function_calling(
+        self, names: Optional[List[str]] = None
+    ) -> Dict[str, Any]:
         abilities = []
-        for ability in self.abilities.values():
+        for name, ability in self.abilities.items():
+            if names and name not in names:
+                continue
             properties = {}
             required = []
             for param in ability.parameters:
-                properties[param.name] = {
+                param_dict = {
                     "type": param.type,
                     "description": param.description,
                 }
+                if param.enum:  # Added these lines to include enum if it's present
+                    param_dict["enum"] = param.enum
+                properties[param.name] = param_dict
                 if param.required:
                     required.append(param.name)
             abilities.append(

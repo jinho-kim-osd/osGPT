@@ -5,7 +5,7 @@ import os
 from typing import Any, List
 
 from forge.sdk.abilities.registry import Ability, AbilityRegister, AbilityParameter
-from ..schema import Workspace
+from ..schema import Project, Issue
 
 
 def ability(
@@ -17,7 +17,8 @@ def ability(
             [AbilityParameter.parse_obj(param).name for param in parameters]
         )
         param_names.add("agent")
-        param_names.add("workspace")
+        param_names.add("project")
+        param_names.add("issue")
         func_param_names = set(func_params.keys())
         if param_names != func_param_names:
             raise ValueError(
@@ -70,28 +71,10 @@ class ForgeAbilityRegister(AbilityRegister):
                         print(f"Error occurred while registering abilities: {str(e)}")
 
     async def run_ability(
-        self, workspace: Workspace, ability_name: str, *args: Any, **kwds: Any
+        self, project: Project, issue: Issue, ability_name: str, *args: Any, **kwds: Any
     ) -> Any:
-        """
-        This method runs a specified ability with the provided arguments and keyword arguments.
-
-        The agent is passed as the first argument to the ability. This allows the ability to access and manipulate
-        the agent's state as needed.
-
-        Args:
-            workspace (Workspace): The ID of the task that the ability is being run for.
-            ability_name (str): The name of the ability to run.
-            *args: Variable length argument list.
-            **kwds: Arbitrary keyword arguments.
-
-        Returns:
-            Any: The result of the ability execution.
-
-        Raises:
-            Exception: If there is an error in running the ability.
-        """
         try:
             ability = self.abilities[ability_name]
-            return await ability(self.agent, workspace, *args, **kwds)
+            return await ability(self.agent, project, issue, *args, **kwds)
         except Exception:
             raise

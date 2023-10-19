@@ -1,9 +1,9 @@
 from __future__ import annotations
-from datetime import datetime
-from typing import List, Dict, Any
+from pathlib import Path
+from typing import List
 
 from forge.sdk import Workspace as WorkspaceService
-from .schema import Comment, User, Workspace, Attachment
+from .schema import Workspace, Attachment
 
 
 class CollaborationWorkspace(Workspace):
@@ -12,15 +12,71 @@ class CollaborationWorkspace(Workspace):
     class Config:
         arbitrary_types_allowed = True
 
+    @property
+    def base_path(self) -> Path:
+        return self.service.base_path
+
     def read(self, task_id: str, path: str):
         return self.service.read(task_id, path)
 
     def write(self, task_id: str, path: str, data: bytes):
         return self.service.write(task_id, path, data)
 
-    def list_attachments(self, task_id: str, path: str) -> List[Attachment]:
-        base_path = self.service.base_path / task_id / path
-        base = self.service._resolve_path(task_id, base_path)
+    def read_relative_path(self, path: str) -> bytes:
+        with open(self._resolve_relative_path(path), "rb") as f:
+            return f.read()
+
+    def write_relative_path(self, path: str, data: bytes) -> Attachment:
+        file_path = self._resolve_relative_path(path)
+        with open(file_path, "wb") as file:
+            file.write(data)
+            filesize = file.tell()
+        return Attachment(
+            filename=file_path.name,
+            filesize=filesize,
+            url=str(file_path.relative_to(self.service.base_path)),
+        )
+
+    def _resolve_relative_path(self, path: str) -> Path:
+        abs_path = (self.base_path / path).resolve()
+
+        if not str(abs_path).startswith(str(self.base_path)):
+            print("Error")
+            raise ValueError(f"Directory traversal is not allowed! - {abs_path}")
+
+        if abs_path.is_dir() or str(path).endswith("/"):
+            target_path = abs_path
+            try:
+                target_path.mkdir(parents=True, exist_ok=True)
+            except Exception as e:
+                print(e)
+        elif abs_path.is_file():
+            target_path = abs_path.parent
+            try:
+                target_path.mkdir(parents=True, exist_ok=True)
+            except Exception as e:
+                print(e)
+        else:
+            if str(path).split(".")[-1] in ["txt", "pdf", "docx", "jpg", "png"]:
+                target_path = abs_path.parent
+                target_path.mkdir(parents=True, exist_ok=True)
+                abs_path.touch()
+            else:
+                target_path = abs_path
+                target_path.mkdir(parents=True, exist_ok=True)
+
+        return abs_path
+
+    def list_relative_path(self, path: str) -> List[str]:
+        path = self.base_path / path
+        base = self._resolve_relative_path(path)
+        if not base.exists() or not base.is_dir():
+            return []
+        return [str(p.relative_to(self.base_path)) for p in base.iterdir()]
+
+    def list_attachments(self, path: str) -> List[Attachment]:
+        base_path = self.service.base_path / path
+        base = self._resolve_relative_path(base_path)
         attachments = []
 
         if not base.exists() or not base.is_dir():
@@ -32,70 +88,7 @@ class CollaborationWorkspace(Workspace):
                     Attachment(
                         filename=file.name,
                         filesize=file.stat().st_size,
-                        url=str(file.relative_to(self.service.base_path / task_id)),
+                        url=str(file.relative_to(self.service.base_path / path)),
                     )
                 )
         return attachments
-
-    def display_structure(self) -> str:
-        structure = f"{self}\n"
-
-        for member in self.members:
-            structure += f"  {member}\n"
-
-        for project in self.projects:
-            structure += f"{project}\n"
-
-            for issue in project.issues:
-                structure += f"  {issue}\n"
-
-                for activity in issue.activities:
-                    structure += f"    {activity}\n"
-
-                if issue.attachments:
-                    structure += "    Attachments:\n"
-                    for attachment in issue.attachments:
-                        structure += f"      {attachment}\n"
-
-        return structure
-
-    # def display_structure(self) -> str:
-    #     """
-    #     Display the structure of the workspace in a tree format including projects, issues, users, and comment attachments.
-    #     """
-    #     structure = f"🌐 Workspace: {self.name}\n"
-
-    #     for member in self.members:
-    #         structure += f"{MINIMUM_INDENT}👤 User: {member.user.name} (Role: {member.workspace_role})\n"
-
-    #     for project in self.projects:
-    #         structure += f"{MINIMUM_INDENT}📁 Project: {project.name} (Key: {project.key}, Leader: {project.project_leader.name})\n"
-
-    #         if project.issues:
-    #             structure += f"{MINIMUM_INDENT*2}📋 Issues:\n"
-
-    #         for issue in project.issues:
-    #             structure += f"{MINIMUM_INDENT*3}#{issue.id} {issue.summary} (Type: {issue.type}, Status: {issue.status}, Assignee: {issue.assignee.name})\n"
-
-    #             if issue.activities:
-    #                 structure += f"{MINIMUM_INDENT*4}🗨 Activities:\n"
-
-    #             for activity in issue.activities:
-    #                 if isinstance(activity, Comment):
-    #                     structure += f"{MINIMUM_INDENT*5}• {activity.created_by.name} [{activity.created_at.strftime('%Y-%m-%d %H:%M:%S')}]: {activity.content}\n"
-
-    #                     if activity.attachments:
-    #                         structure += (
-    #                             f"{MINIMUM_INDENT*6}📎 Attachments in Comment:\n"
-    #                         )
-
-    #                     for attachment in activity.attachments:
-    #                         structure += f"{MINIMUM_INDENT*7}• File: {attachment.filename}, Size: {attachment.filesize} bytes, Uploaded on: {attachment.uploaded_at.strftime('%Y-%m-%d %H:%M:%S')}\n"
-
-    #             if issue.attachments:
-    #                 structure += f"{MINIMUM_INDENT*4}📎 Attachments:\n"
-
-    #             for attachment in issue.attachments:
-    #                 structure += f"{MINIMUM_INDENT*5}• File: {attachment.filename}, Size: {attachment.filesize} bytes, Uploaded on: {attachment.uploaded_at.strftime('%Y-%m-%d %H:%M:%S')}\n"
-
-    #     return structure

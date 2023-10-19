@@ -1,8 +1,7 @@
 from typing import List
 
 from ..registry import ability
-from ...schema import Workspace
-
+from ...schema import Project, Issue, Attachment
 from forge.sdk import ForgeLogger
 
 logger = ForgeLogger(__name__)
@@ -21,11 +20,11 @@ logger = ForgeLogger(__name__)
     ],
     output_type="list[str]",
 )
-async def list_files(agent, workspace: Workspace, path: str) -> List[str]:
+async def list_files(agent, project: Project, issue: Issue, path: str) -> List[str]:
     """
     List files in a workspace directory
     """
-    return agent.workspace.list(task_id=task_id, path=str(path))
+    return agent.workspace.list_relative_path(path)
 
 
 @ability(
@@ -47,20 +46,18 @@ async def list_files(agent, workspace: Workspace, path: str) -> List[str]:
     ],
     output_type="object",
 )
-async def write_file(agent, workspace: Workspace, file_path: str, data: str):
+async def write_file(
+    agent, project: Project, issue: Issue, file_path: str, data: str
+) -> List[Attachment]:
     """
     Write data to a file
     """
     if isinstance(data, str):
         data = data.encode()
 
-    agent.workspace.write(task_id=task_id, path=file_path, data=data)
-    return await agent.db.create_artifact(
-        task_id=task_id,
-        file_name=file_path.split("/")[-1],
-        relative_path=file_path,
-        agent_created=True,
-    )
+    attachment = agent.workspace.write_relative_path(path=file_path, data=data)
+    issue.add_attachment(attachment)
+    return [attachment]
 
 
 @ability(
@@ -76,12 +73,12 @@ async def write_file(agent, workspace: Workspace, file_path: str, data: str):
     ],
     output_type="bytes",
 )
-async def read_file(agent, workspace: Workspace, file_path: str) -> bytes:
+async def read_file(agent, project: Project, issue: Issue, file_path: str) -> bytes:
     """
     Read data from a file
     """
     try:
-        data = agent.workspace.read(task_id=task_id, path=file_path)
+        data = agent.workspace.read_relative_path(path=file_path)
     except:
         return f"Not found on path {file_path}"
     if isinstance(data, bytes):

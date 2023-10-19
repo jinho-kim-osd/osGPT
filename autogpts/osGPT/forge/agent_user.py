@@ -1,27 +1,24 @@
+import os
 import json
 from typing import Optional, List, Any, Dict
 
 from forge.sdk import (
     Agent,
-    Step,
-    StepRequestBody,
     ForgeLogger,
-    Task,
-    TaskRequestBody,
-    Artifact,
     PromptEngine,
 )
-from .utils import gpt4_chat_completion_request
+from .utils import get_openai_response
 from .workspace import CollaborationWorkspace
 
-from .contants import (
-    DEFAULT_AGENT_USER_PROMPT_MODEL,
-)
 from .abilities.registry import ForgeAbilityRegister
-from .schema import User, Project, Issue, Comment, Attachment, UserType, Activity
+from .schema import User, Project, Issue, Comment, UserType, Activity
 from .db import ForgeDatabase
 
 logger = ForgeLogger(__name__)
+
+# Maximum number of chained calls allowed to prevent infinite or lengthy loops
+DEFAULT_MAX_CHAINED_CALLS = os.getenv("DEFAULT_MAX_CHAINED_CALLS")
+TERMINATION_WORD = "<TERMINATE>"
 
 
 class AgentUser(User, Agent):
@@ -33,29 +30,124 @@ class AgentUser(User, Agent):
     class Config:
         extra = "allow"
 
+    def __str__(self):
+        return f"AgentUser({self.name}, {self.role})"
+
     def __init__(self, **data):
         super().__init__(**data)
         self.abilities = ForgeAbilityRegister(self, self.ability_names)
 
-    async def execute_project(
-        self, task_id: str, project: Project, issue: Issue
+    async def resolve_issues(
+        self, project: Project, issue: Optional[Issue] = None
     ) -> List[Activity]:
         activities = []
-        logger.info(f"[{project.key}-{issue.id}] {self.name} > Executing a project")
+        logger.info(
+            f"[{project.key}-{issue.id if issue else 'No Issue'}] {self.name} > Resolving an issue"
+        )
 
         # Execute the task, add your logic here
         task_execution_activities = await self.perform_task(project, issue)
+        activities.extend(task_execution_activities)
 
         # Report the results
-        reporting_activities = await self.report_results(
-            task_id, task_execution_activities, project, issue
-        )
-        activities.extend(reporting_activities)
+        # reporting_activities = await self.report_results(
+        #     task_execution_activities, project, issue
+        # )
+        # activities.extend(reporting_activities)
         return activities
 
-    async def perform_task(self, project: Project, issue: Issue) -> List[Activity]:
+    async def process_chained_calls(
+        self,
+        project: Project,
+        issue: Optional[Issue] = None,
+        messages: List[Dict[str, Any]] = [],
+        functions: Optional[Dict[str, Any]] = None,
+        force_function: bool = False,
+        max_chained_calls: int = DEFAULT_MAX_CHAINED_CALLS,
+    ) -> List[Activity]:
         activities = []
-        logger.info(f"[{project.key}-{issue.id}] {self.name} > Performing a task")
+
+        stack = 0
+        prev_message_content = None
+        while stack < max_chained_calls:
+            logger.info(
+                f"[{project.key}-{issue.id if issue else 'No Issue'}] > Process chained calls (stack: {stack})"
+            )
+            message = await get_openai_response(messages, functions=functions)
+
+            if "function_call" in message:
+                fn_name = message["function_call"]["name"]
+                fn_args = json.loads(message["function_call"]["arguments"])
+                logger.info(
+                    f"[{project.key}-{issue.id if issue else 'No Issue'}] > Function request: {fn_name}({fn_args})"
+                )
+                try:
+                    fn_response = await self.abilities.run_ability(
+                        project, issue, fn_name, **fn_args
+                    )
+                    if isinstance(fn_response, Activity):
+                        fn_response_str = str(fn_response)
+                        activities.append(fn_response)
+                    elif isinstance(fn_response, List):
+                        fn_response_str = "["
+                        for item in fn_response:
+                            if isinstance(item, Activity):
+                                fn_response_str += str(item) + ",\n"
+                                activities.append(item)
+                            else:
+                                fn_response_str += str(item)
+                        fn_response_str += "]"
+                    else:
+                        fn_response_str = str(fn_response)
+                except Exception as e:
+                    fn_response_str = str(e)
+                messages.append(
+                    {
+                        "role": "function",
+                        "name": fn_name,
+                        "content": fn_response_str,
+                    }
+                )
+
+                logger.info(
+                    f"[{project.key}-{issue.id if issue else 'No Issue'}] > Function response: {fn_response_str}"
+                )
+            elif message["content"] in [TERMINATION_WORD, "", prev_message_content]:
+                break
+            else:
+                if force_function:
+                    logger.info(
+                        f"[{project.key}-{issue.id if issue else 'No Issue'}] > Invalid Response."
+                    )
+                    messages.append({"role": "user", "content": "Use functions only."})
+                else:
+                    comment = Comment(content=message["content"], created_by=self)
+                    logger.info(
+                        f"[{project.key}-{issue.id if issue else 'No Issue'}] > {comment}"
+                    )
+                    issue.add_activity(comment)
+                    messages.append({"role": "user", "content": project.display()})
+                    activities.append(comment)
+                    prev_message_content = message["content"]
+
+            # Add workspace landscape for observation
+            messages.append({"role": "user", "content": project.display()})
+            stack += 1
+
+        if stack >= max_chained_calls:
+            logger.error(
+                f"[{project.key}-{issue.id if issue else 'No Issue'}] > Reached max chained function calls: {max_chained_calls}"
+            )
+
+        return activities
+
+    async def perform_task(
+        self, project: Project, issue: Optional[Issue] = None
+    ) -> List[Activity]:
+        activities = []
+        logger.info(
+            f"[{project.key}-{issue.id if issue else 'No Issue'}] {self.name} > Performing a task"
+        )
 
         workspace_role = self.workspace.get_workspace_role_with_user_name(self.name)
         system_prompt = self.build_system_prompt(
@@ -63,9 +155,9 @@ class AgentUser(User, Agent):
         )
         user_prompt = self.build_system_prompt(
             template="perform-task-user",
-            current_workspace_structure=self.workspace.display_structure(),
+            current_workspace_structure=self.workspace.display(),
         )
-        openai_messages = [
+        messages = [
             {
                 "role": "system",
                 "content": system_prompt,
@@ -73,179 +165,28 @@ class AgentUser(User, Agent):
             {"role": "user", "content": user_prompt},
         ]
         functions = self.abilities.list_abilities_for_function_calling()
-        response = await gpt4_chat_completion_request(
-            openai_messages, functions=functions
+        activities = await self.process_chained_calls(
+            project,
+            issue,
+            messages,
+            functions,
+            force_function=True,
+            max_chained_calls=2,
         )
-        logger.info(f"[{project.key}-{issue.id}] {self.name} > {str(response)}")
-        if "function_call" in response:
-            fn_name = response["function_call"]["name"]
-            fn_args = json.loads(response["function_call"]["arguments"])
-            fn_activities = self.run_ability(fn_name, fn_args, project, issue)
-            activities.extend(fn_activities)
-        else:
-            comment = Comment(content=response["content"], created_by=self)
-            issue.add_attachment(comment)
-            activities.append(comment)
         return activities
 
-    async def report_results(
-        self,
-        task_id: str,
-        task_execution_activities: List[Activity],
-        project: Project,
-        issue: Issue,
-    ) -> List[Activity]:
-        activities = []
-
-        workspace_role = self.workspace.get_workspace_role_with_user_name(self.name)
-        system_prompt = self.build_system_prompt(
-            template="report-results-system",
-            workspace_role=workspace_role,
-        )
-        user_prompt = self.build_system_prompt(
-            template="report-results-user",
-            task_execution_activities=task_execution_activities,
-            current_workspace_structure=self.workspace.display_structure(),
-        )
-        openai_messages = [
-            {
-                "role": "system",
-                "content": system_prompt,
-            },
-            {"role": "user", "content": user_prompt},
-        ]
-        functions = self.abilities.list_abilities_for_function_calling()
-        response = await gpt4_chat_completion_request(
-            openai_messages, functions=functions
-        )
-        logger.info(f"[{project.key}-{issue.id}] {self.name} > {str(response)}")
-        if "function_call" in response:
-            fn_name = response["function_call"]["name"]
-            fn_args = json.loads(response["function_call"]["arguments"])
-            fn_activities = self.run_ability(fn_name, fn_args, project, issue)
-            activities.extend(fn_activities)
-        else:
-            comment = Comment(content=response["content"], created_by=self)
-            issue.add_attachment(comment)
-            activities.append(comment)
-        logger.info(f"[{project.key}-{issue.id}] {self.name} > {str(response)}")
-
-        comment_content = f"Task completed with results: {response}"
-        comment = Comment(content=comment_content, created_by=self, attachments=[])
-        issue.add_activity(comment)
-        activities.append(comment)
-        return activities
-
-    async def manage_workspace(
-        self,
-        task_id: str,
-        target_workspace_structure: str,
-        project: Project,
-        issue: Optional[Issue] = None,
-    ) -> List[Activity]:
-        activities = []
-        while True:
-            system_prompt = self.build_system_prompt(template="manage-workspace-system")
-            user_prompt = self.build_system_prompt(
-                template="manage-workspace-user",
-                current_workspace_structure=self.workspace.display_structure(),
-                target_workspace_structure=target_workspace_structure,
-            )
-            openai_messages = [
-                {
-                    "role": "system",
-                    "content": system_prompt,
-                },
-                {"role": "user", "content": user_prompt},
-            ]
-            functions = self.abilities.list_abilities_for_function_calling()
-            response = await gpt4_chat_completion_request(
-                openai_messages, functions=functions
-            )
-            logger.info(str(response))
-            if "function_call" in response:
-                fn_name = response["function_call"]["name"]
-                fn_args = json.loads(response["function_call"]["arguments"])
-                logger.info(f"Function Calling[{self.name}]: {fn_name}({fn_args})")
-                fn_activities = self.run_ability(fn_name, fn_args, project, issue)
-                activities.extend(fn_activities)
-                break
-            else:
-                comment = Comment(content=response["content"], created_by=self)
-                issue.add_attachment(comment)
-                activities.append(comment)
-                break
-        logger.info(str([str(activity) for activity in activities]))
-        return activities
-
-    def run_ability(
-        self,
-        fn_name: str,
-        fn_args: Dict[str, Any],
-        project: Project,
-        issue: Optional[Issue] = None,
-    ) -> List[Activity]:
-        activities = []
-        if fn_name == "change_assignee":
-            target_issue = self.workspace.get_issue(
-                fn_args["project_key"], fn_args["issue_id"]
-            )
-            old_assignee = target_issue.assignee
-            new_assignee = self.workspace.get_user_with_name(fn_args["new_assignee"])
-            target_issue.assignee = new_assignee
-            activity = AssignmentChangeActivity(
-                old_assignee=old_assignee, new_assignee=new_assignee, created_by=self
-            )
-            target_issue.add_activity(activity)
-            activities.append(activity)
-
-        elif fn_name == "add_comment":
-            target_issue = self.workspace.get_issue(
-                fn_args["project_key"], fn_args["issue_id"]
-            )
-            comment = Comment(content=fn_args["content"], created_by=self)
-            target_issue.add_activity(comment)
-            activities.append(comment)
-
-        elif fn_name == "finish":
-            ...
-        return activities
-
-    def get_prompt_engine(
-        self, model: str = DEFAULT_AGENT_USER_PROMPT_MODEL
-    ) -> PromptEngine:
+    def get_prompt_engine(self, model: str) -> PromptEngine:
         return PromptEngine(model)
 
     def build_system_prompt(
         self,
-        model: str = DEFAULT_AGENT_USER_PROMPT_MODEL,
+        model: Optional[str] = None,
         template: Optional[str] = None,
         **kwargs,
     ) -> str:
+        if model is None:
+            model = os.getenv("DEFAULT_PROMPT_MODEL", "predefined")
         prompt_engine = self.get_prompt_engine(model=model)
         if template is None:
             template = self.id
         return prompt_engine.load_prompt(template, **kwargs)
-
-    async def create_step(
-        self,
-        task_id: str,
-        input: str,
-        name: Optional[str] = None,
-        additional_input: Optional[dict] = None,
-    ) -> Step:
-        if name is None:
-            name = input
-        step_request = StepRequestBody(
-            name=name, input=input, additional_input=additional_input
-        )
-        return await self.db.create_step(
-            task_id=task_id, input=step_request, additional_input=additional_input
-        )
-
-    def reset(self):
-        pass
-
-    async def create_task(self, task_request: TaskRequestBody) -> Task:
-        self.reset()
-        return await super().create_task(task_request)

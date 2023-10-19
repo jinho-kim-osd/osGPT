@@ -1,3 +1,5 @@
+import os
+import json
 from typing import Optional, List, Tuple, Any
 from forge.sdk import (
     Agent,
@@ -28,14 +30,21 @@ from .schema import (
 from .agent_user import AgentUser
 from .db import ForgeDatabase
 from .workspace import CollaborationWorkspace
-from .contants import (
-    LIST_STEPS_PER_PAGE,
-    DEFAULT_USER_ID,
-    DEFAULT_USER_NAME,
-    DEFAULT_USER_ABILITIES,
-)
+
 
 logger = ForgeLogger(__name__)
+
+
+DEFAULT_MEMBER_ABILITIES = os.environ.get("DEFAULT_MEMBER_ABILITIES", None)
+if DEFAULT_MEMBER_ABILITIES:
+    DEFAULT_MEMBER_ABILITIES = json.loads(DEFAULT_MEMBER_ABILITIES)
+else:
+    DEFAULT_MEMBER_ABILITIES = [
+        "read_file",
+        "list_files",
+        "change_issue_status",
+        "add_comment",
+    ]
 
 
 class JiraAgent(Agent):
@@ -58,11 +67,11 @@ class JiraAgent(Agent):
 
         # Creating users
         self.user_proxy_agent = AgentUser(
-            id=DEFAULT_USER_ID,
-            name=DEFAULT_USER_NAME,
+            id=os.environ.get("DEFAULT_USER_ID"),
+            name=os.environ.get("DEFAULT_USER_NAME"),
             role=Role.MEMBER,
             workspace=self.workspace,
-            ability_names=DEFAULT_USER_ABILITIES,
+            ability_names=DEFAULT_MEMBER_ABILITIES,
             db=self.db,
         )
         project_manager = ProjectManagerAgentUser(
@@ -70,7 +79,11 @@ class JiraAgent(Agent):
             name="Norman Osborn",
             role=Role.ADMIN,
             workspace=self.workspace,
-            ability_names=[*DEFAULT_USER_ABILITIES, "change_assignee", "finish"],
+            ability_names=[
+                *DEFAULT_MEMBER_ABILITIES,
+                "create_issue",
+                "change_assignee",
+            ],
             db=self.db,
         )
         engineer = AgentUser(
@@ -78,14 +91,14 @@ class JiraAgent(Agent):
             name="Max Dillon",
             role=Role.MEMBER,
             workspace=self.workspace,
-            ability_names=[*DEFAULT_USER_ABILITIES, "run_python_code"],
+            ability_names=[*DEFAULT_MEMBER_ABILITIES, "run_python_code"],
             db=self.db,
         )
 
         # Add members to a Workspace
         for user, workspace_role in zip(
             [self.user_proxy_agent, project_manager, engineer],
-            ["Problem Provider", "Project Manager", "Enginner"],
+            ["Boss", "Project Manager", "Engineer"],
         ):
             self.workspace.add_member(user, workspace_role)
 
@@ -126,11 +139,13 @@ class JiraAgent(Agent):
         # issue = Issue(
         #     id=1, summary="test", type=IssueType.TASK, reporter=self.user_proxy_agent
         # )
+
         # attachment = Attachment(
         #     url="/Users/jinho/Projects/osGPT/autogpts/osGPT/input.txt",
         #     filename="input.txt",
         #     filesize=3153,
         # )
+        # issue.add_attachment(attachment)
         # issue.add_activity(
         #     Comment(
         #         content="test",
@@ -138,13 +153,8 @@ class JiraAgent(Agent):
         #         attachments=[attachment],
         #     )
         # )
-
-    @property
-    def workspace_member_user_ids(self) -> List[str]:
-        return [member.user.id for member in self.workspace.members]
-
-    def get_member_by_id(self, id: str) -> WorkspaceMember:
-        return self.workspace.members[self.workspace_member_user_ids.index(id)]
+        # project.add_issue(issue)
+        # print(self.workspace.display())
 
     def reset(self):
         self.setup_workspace()
@@ -172,17 +182,6 @@ class JiraAgent(Agent):
         )
         return issue
 
-    def set_agent_protocol(self, task: Task, step: Step):
-        self.current_task = task
-        self.current_step = step
-        for member in self.workspace.users:
-            member.set_agent_protocol(task, step)
-
-    def get_current_project(self) -> Project:
-        if len(self.workspace.projects) == 1:
-            return self.workspace.projects[0]
-        raise LookupError
-
     def get_current_project(self) -> Project:
         if len(self.workspace.projects) == 1:
             return self.workspace.projects[0]
@@ -209,9 +208,12 @@ class JiraAgent(Agent):
 
         if step_request.input:
             num_issues = len(project.issues)
+            initial_input = (
+                f"Plan and assign issues for executing '{step_request.input}'"
+            )
             issue = Issue(
                 id=num_issues + 1,
-                summary=step_request.input,
+                summary=initial_input,
                 type=IssueType.TASK,
                 assignee=project.project_leader,
                 reporter=self.user_proxy_agent,
@@ -219,53 +221,84 @@ class JiraAgent(Agent):
             activity = IssueCreationActivity(created_by=self.user_proxy_agent)
             issue.add_activity(activity)
 
-            existing_attachments = self.workspace.list_attachments(task_id, ".")
+            existing_attachments = self.workspace.list_attachments(f"{task_id}/.")
             for attachment in existing_attachments:
                 issue.add_attachment(attachment)
 
             issue.add_activity(
-                Comment(content=step_request.input, created_by=self.user_proxy_agent)
+                Comment(
+                    content=f"Workspace Root Path: ./{task_id}",
+                    created_by=self.user_proxy_agent,
+                )
             )
             project.add_issue(issue)
 
-            # clarify user requirements
-            response = project.project_leader.clarify_requirements(
-                step_request.input, project, issue
-            )
-            ...
+        unresolved_issues = [
+            issue
+            for issue in project.issues
+            if issue.status not in [Status.CLOSED, Status.RESOLVED]
+        ]
+
+        next_speaker = await project.project_leader.select_next_speaker(project)
+        if next_speaker:
+            print(self.workspace.display())
+            activities = await next_speaker.resolve_issues(project, None)
+            for activity in activities:
+                if isinstance(activity, Comment):
+                    if activity.attachments:
+                        for attachment in activity.attachments:
+                            logger.info("attachment!!!!")
+                            self.db.create_artifact(
+                                task_id,
+                                attachment.filename,
+                                relative_path=attachment.url,
+                                agent_created=True,
+                                step_id=step.step_id,
+                            )
         else:
-            for pending_issue in project.issues:
-                if pending_issue.status in [Status.OPEN, Status.IN_PROGRESS]:
-                    issue = pending_issue
-                    break
+            # unresolved_issues = [
+            #     issue
+            #     for issue in project.issues
+            #     if issue.status not in [Status.CLOSED, Status.RESOLVED]
+            # ]
+            # if len(unresolved_issues) == 0:
+            logger.info("Check closing!!!!")
+            # monitor_progress, ensure quality, close_issue
+            activities = await project.project_leader.resolve_issues(project, None)
+            for activity in activities:
+                if isinstance(activity, Comment):
+                    if activity.attachments:
+                        for attachment in activity.attachments:
+                            logger.info("attachment!!!!")
+                            self.db.create_artifact(
+                                task_id,
+                                attachment.filename,
+                                relative_path=attachment.url,
+                                agent_created=True,
+                                step_id=step.step_id,
+                            )
 
         # Printing the workspace structure
-        print(self.workspace.display_structure())
-        activities = await issue.assignee.execute_project(task_id, project, issue)
-        for activity in activities:
-            if isinstance(activity, Comment):
-                if activity.attachments:
-                    for attachment in activity.attachments:
-                        self.db.create_artifact(
-                            task_id,
-                            attachment.filename,
-                            relative_path=attachment.url,
-                            agent_created=True,
-                            step_id=step.step_id,
-                        )
+        print(self.workspace.display())
+        unclosed_issues = [
+            issue for issue in project.issues if issue.status != Status.CLOSED
+        ]
+
+        # project.project_leadermonitor_progress()
 
         step = await self.db.update_step(
             task_id,
             step.step_id,
             "completed",
-            output=self.workspace.display_structure(),
+            output=self.workspace.display(),
         )
-        step.is_last = True
-        print(self.workspace.display_structure())
+        step.is_last = len(unclosed_issues) == 0
         return step
 
     async def next_step(self, task_id: str) -> Tuple[List[Step], Optional[Step]]:
-        steps, _ = await self.db.list_steps(task_id, per_page=LIST_STEPS_PER_PAGE)
+        steps, _ = await self.db.list_steps(
+            task_id, per_page=int(os.environ.get("MAX_STEPS_PER_PAGE", 1000))
+        )
 
         previous_steps = []
         pending_steps = []

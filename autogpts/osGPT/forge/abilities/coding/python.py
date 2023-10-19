@@ -2,7 +2,7 @@
 Ability for running Python code
 """
 
-from typing import Dict, Optional
+from typing import Dict, Optional, Any
 import os
 import re
 import ast
@@ -13,7 +13,7 @@ from pydantic import BaseModel, Field
 
 from forge.sdk.forge_log import ForgeLogger
 from ..registry import ability
-from ...schema import Workspace
+from ...schema import Project, Issue, Comment, Attachment
 
 logger = ForgeLogger(__name__)
 
@@ -102,34 +102,56 @@ def sanitize_input(query: str) -> str:
             "description": "Code snippet to run",
             "type": "string",
             "required": True,
-        }
+        },
+        {
+            "name": "project_key",
+            "description": "The key of the project containing the issue",
+            "type": "string",
+            "required": True,
+        },
+        {
+            "name": "issue_id",
+            "description": "The ID of the issue whose code is to be executed",
+            "type": "number",
+            "required": True,
+        },
+        {
+            "name": "path",
+            "description": "The relative path in the workspace where the code will be executed",
+            "type": "string",
+            "required": True,
+        },
     ],
-    output_type="dict[str, Any]",
+    output_type="object",
 )
-async def run_python_code(agent, workspace: Workspace, query: str) -> str:
+async def run_python_code(
+    agent,
+    project: Project,
+    issue: Issue,
+    query: str,
+    project_key: str,
+    issue_id: int,
+    path: str,
+) -> Dict[str, Any]:
     """
     Run a python code
     """
     query = sanitize_input(query)
-    working_dir = agent.workspace._resolve_path(task_id, ".")
+    working_dir = agent.workspace._resolve_relative_path(path)
     python_repl = PythonAstREPLTool(
         _globals=globals(), _locals=None, _working_directory=str(working_dir)
     )
-    before_files = set(os.listdir(working_dir))
+    before_attachments = set(agent.workspace.list_attachments(path))
     output = python_repl.run(query)
+    after_attachments = set(agent.workspace.list_attachments(path))
+    new_attachments = after_attachments - before_attachments
 
-    after_files = set(os.listdir(working_dir))
-    new_files = after_files - before_files
+    target_issue = agent.workspace.get_issue(project_key, issue_id)
 
-    artifacts = []
-    for file_name in new_files:
-        logger.info(f"Artifact created: {file_name}")
-        file_path = working_dir / file_name
-        artifact = await agent.db.create_artifact(
-            task_id=task_id,
-            file_name=str(file_path).split("/")[-1],
-            relative_path="",
-            agent_created=True,
-        )
-        artifacts.append(artifact)
-    return {"new_files": new_files, "artifacts": artifacts, "stdout": output}
+    for attachment in new_attachments:
+        target_issue.add_attachment(attachment)
+    return {
+        "status": "executed",
+        "sysout": output,
+        "files": new_attachments,
+    }

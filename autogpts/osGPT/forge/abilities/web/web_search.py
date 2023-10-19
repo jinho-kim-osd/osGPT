@@ -7,7 +7,7 @@ from itertools import islice
 from serpapi import GoogleSearch
 
 from ..registry import ability
-from ...schema import Workspace
+from ...schema import Project, Issue
 
 SERPAPI_MAX_ATTEMPTS = 3
 
@@ -25,7 +25,7 @@ SERPAPI_MAX_ATTEMPTS = 3
     ],
     output_type="list[str]",
 )
-async def web_search(agent, workspace: Workspace, query: str) -> str:
+async def web_search(agent, project: Project, issue: Issue, query: str) -> str:
     """Return the results of a Google search
     Args:
         query (str): The search query.

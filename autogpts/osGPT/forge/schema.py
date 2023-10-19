@@ -1,11 +1,13 @@
 from __future__ import annotations
 
+from abc import abstractmethod
 from typing import List, Dict, Any, Optional
 from enum import Enum
 from datetime import datetime
 
 from pydantic import BaseModel, Field
-from .utils import humanize_time
+from .utils import humanize_time, truncate_text
+from .display import TreeStructureDisplay
 
 
 class IconBaseModel(BaseModel):
@@ -43,6 +45,12 @@ class User(BaseModel):
 
     class Config:
         arbitrary_types_allowed = True
+
+    @abstractmethod
+    async def resolve_issues(
+        self, project: Project, issue: Optional[Issue] = None
+    ) -> List[Activity]:
+        raise NotImplementedError
 
 
 class IssueType(str, Enum):
@@ -101,6 +109,9 @@ class Attachment(IconBaseModel):
             f"Uploaded on: {humanized_time}"
         )
 
+    def __hash__(self):
+        return hash((self.filename, self.filesize, self.url))
+
 
 class Comment(Activity):
     type: ActivityType = ActivityType.COMMENT
@@ -109,6 +120,7 @@ class Comment(Activity):
 
     def __str__(self):
         humanized_time = humanize_time(self.created_at)
+        # truncated_comment = truncate_text(self.content, 200)
         return f"{self.created_by.name} added a Comment: '{self.content}'. {humanized_time}"
 
     def add_attachment(self, attachment: Attachment):
@@ -191,13 +203,54 @@ class Issue(IconBaseModel):
         arbitrary_types_allowed = True
 
     def __str__(self):
-        return f"{self.icon} Issue #{self.id}: {self.summary} (Status: {self.status})"
+        assignee_str = (
+            f", Assignee: {self.assignee.name}" if self.assignee else ", Assignee: None"
+        )
+        return f"{self.icon} Issue #{self.id}: {self.summary} (Status: {self.status}{assignee_str})"
 
     def add_activity(self, activity: Activity):
         self.activities.append(activity)
 
     def add_attachment(self, attachment: Attachment):  # And added this method
         self.attachments.append(attachment)
+
+    def display(self) -> str:
+        tree_display = TreeStructureDisplay()
+
+        issue_node = tree_display.add_node(str(self))
+
+        # Add Parent Issue if exists
+        if self.parent_issue:
+            tree_display.add_node(
+                f"Parent: {str(self.parent_issue)}", parent=issue_node
+            )
+
+        # Add Sub Issues if exist
+        if self.child_issues:
+            for child_issue in self.child_issues:
+                tree_display.add_node(f"Sub: {str(child_issue)}", parent=issue_node)
+
+        # Sorting activities by their creation time
+        sorted_activities = sorted(self.activities, key=lambda x: x.created_at)
+
+        for activity in sorted_activities:
+            activity_node = tree_display.add_node(str(activity), parent=issue_node)
+
+            if isinstance(activity, Comment) and activity.attachments:
+                # Sorting attachments by their upload time within each activity
+                print(activity.attachments)
+                sorted_attachments = sorted(
+                    activity.attachments, key=lambda x: x.uploaded_at
+                )
+                for attachment in sorted_attachments:
+                    tree_display.add_node(str(attachment), parent=activity_node)
+
+        # Sorting attachments by their upload time at the issue level
+        sorted_issue_attachments = sorted(self.attachments, key=lambda x: x.uploaded_at)
+        for attachment in sorted_issue_attachments:
+            tree_display.add_node(str(attachment), parent=issue_node)
+
+        return tree_display.display()
 
 
 class Condition(BaseModel):
@@ -268,6 +321,44 @@ class Project(IconBaseModel):
                 f"Failed to apply transition '{transition_name}' to issue #{issue.id}"
             )
 
+    def display(self) -> str:
+        tree_display = TreeStructureDisplay()
+
+        project_node = tree_display.add_node(str(self))
+
+        # Sorting issues by the time of their most recent activity
+        sorted_issues = sorted(
+            self.issues,
+            key=lambda x: max(
+                [a.created_at for a in x.activities], default=datetime.min
+            ),
+        )
+
+        for issue in sorted_issues:
+            issue_node = tree_display.add_node(str(issue), parent=project_node)
+
+            # Sorting activities by their creation time within each issue
+            sorted_activities = sorted(issue.activities, key=lambda x: x.created_at)
+            for activity in sorted_activities:
+                activity_node = tree_display.add_node(str(activity), parent=issue_node)
+
+                if isinstance(activity, Comment) and activity.attachments:
+                    # Sorting attachments by their upload time within each activity
+                    sorted_attachments = sorted(
+                        activity.attachments, key=lambda x: x.uploaded_at
+                    )
+                    for attachment in sorted_attachments:
+                        tree_display.add_node(str(attachment), parent=activity_node)
+
+            # Sorting attachments by their upload time at the issue level
+            sorted_issue_attachments = sorted(
+                issue.attachments, key=lambda x: x.uploaded_at
+            )
+            for attachment in sorted_issue_attachments:
+                tree_display.add_node(str(attachment), parent=issue_node)
+
+        return tree_display.display()
+
 
 class WorkspaceMember(IconBaseModel):
     icon = "👤"
@@ -335,7 +426,7 @@ class Workspace(IconBaseModel):
         )
         self.members.append(member)
 
-    def get_user_with_name(self, name: Role) -> User:
+    def get_user_with_name(self, name: str) -> User:
         for member in self.members:
             if member.user.name == name:
                 return member.user
@@ -356,3 +447,52 @@ class Workspace(IconBaseModel):
             if name == member.user.name:
                 return member.workspace_role
         raise ValueError
+
+    def display(self) -> str:
+        tree_display = TreeStructureDisplay()
+
+        workspace_node = tree_display.add_node(str(self))
+
+        for member in self.members:
+            tree_display.add_node(str(member), parent=workspace_node)
+
+        for project in self.projects:
+            project_node = tree_display.add_node(str(project), parent=workspace_node)
+
+            # Sorting issues by their ID in ascending order
+            sorted_issues = sorted(project.issues, key=lambda x: x.id)
+
+            # # Sorting issues by the time of their most recent activity
+            # sorted_issues = sorted(
+            #     project.issues,
+            #     key=lambda x: max(
+            #         [a.created_at for a in x.activities], default=datetime.min
+            #     ),
+            # )
+
+            for issue in sorted_issues:
+                issue_node = tree_display.add_node(str(issue), parent=project_node)
+
+                # Sorting activities by their creation time within each issue
+                sorted_activities = sorted(issue.activities, key=lambda x: x.created_at)
+                for activity in sorted_activities:
+                    activity_node = tree_display.add_node(
+                        str(activity), parent=issue_node
+                    )
+
+                    if isinstance(activity, Comment) and activity.attachments:
+                        # Sorting attachments by their upload time within each activity
+                        sorted_attachments = sorted(
+                            activity.attachments, key=lambda x: x.uploaded_at
+                        )
+                        for attachment in sorted_attachments:
+                            tree_display.add_node(str(attachment), parent=activity_node)
+
+                # Sorting attachments by their upload time at the issue level
+                sorted_issue_attachments = sorted(
+                    issue.attachments, key=lambda x: x.uploaded_at
+                )
+                for attachment in sorted_issue_attachments:
+                    tree_display.add_node(str(attachment), parent=issue_node)
+
+        return tree_display.display()
