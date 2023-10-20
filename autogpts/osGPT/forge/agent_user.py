@@ -25,8 +25,6 @@ from .db import ForgeDatabase
 
 logger = ForgeLogger(__name__)
 
-# Maximum number of chained calls allowed to prevent infinite or lengthy loops
-DEFAULT_MAX_CHAINED_CALLS = os.getenv("DEFAULT_MAX_CHAINED_CALLS")
 TERMINATION_WORD = "<TERMINATE>"
 
 
@@ -80,6 +78,8 @@ class AgentUser(User, Agent):
         issue: Issue,
         prompt_name: str,
         ability_names: Optional[List[str]] = None,
+        force_function: bool = True,
+        max_chained_calls: int = 2,
     ) -> List[Activity]:
         activities = []
 
@@ -105,8 +105,8 @@ class AgentUser(User, Agent):
             issue,
             messages,
             functions,
-            force_function=True,
-            max_chained_calls=2,
+            force_function=force_function,
+            max_chained_calls=max_chained_calls,
         )
         return activities
 
@@ -117,7 +117,7 @@ class AgentUser(User, Agent):
         messages: List[Dict[str, Any]] = [],
         functions: Optional[Dict[str, Any]] = None,
         force_function: bool = False,
-        max_chained_calls: int = DEFAULT_MAX_CHAINED_CALLS,
+        max_chained_calls: int = 2,
     ) -> List[Activity]:
         activities = []
 

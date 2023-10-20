@@ -1,4 +1,4 @@
-from typing import Optional, List, Dict, Any
+from typing import Optional, Dict, Any
 
 from forge.sdk import ForgeLogger, PromptEngine
 
@@ -6,10 +6,6 @@ from .agent_user import AgentUser, TERMINATION_WORD
 from .schema import (
     Project,
     Issue,
-    Status,
-    IssueType,
-    Comment,
-    Activity,
 )
 from .utils import get_openai_response
 
@@ -17,29 +13,10 @@ logger = ForgeLogger(__name__)
 
 
 class ProjectManagerAgentUser(AgentUser):
-    async def resolve_issue(
-        self, project: Project, issue: Optional[Issue] = None
-    ) -> List[Activity]:
-        activities = []
-        if issue is None or issue.status in [
-            Status.IN_PROGRESS,
-            Status.RESOLVED,
-            Status.CLOSED,
-        ]:
-            management_activities = await self.manage_workspace(project, issue)
-            activities.extend(management_activities)
-        elif issue.status in [Status.OPEN, Status.REOPENED]:
-            plan_activities = await self.create_project_plan(project, issue)
-            activities.extend(plan_activities)
-        else:
-            logger.info(str(issue))
-            raise NotImplementedError
-        return activities
-
     async def review_issue(
         self,
         project: Project,
-        issue: Optional[Issue] = None,
+        issue: Issue,
     ) -> Dict[str, Any]:
         return await self.execute_task_with_prompt(
             project,

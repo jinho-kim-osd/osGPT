@@ -1,9 +1,7 @@
 import os
-import json
 from typing import Optional, List, Tuple, Any
 from forge.sdk import (
     Agent,
-    Task,
     Step,
     StepRequestBody,
     ForgeLogger,
@@ -12,19 +10,12 @@ from forge.sdk import (
 from forge.sdk.abilities.registry import AbilityRegister
 from .schema import (
     User,
-    Role,
-    Transition,
     Status,
-    Workflow,
     Project,
     Issue,
     IssueType,
     Comment,
-    Activity,
     IssueCreationActivity,
-    AttachmentUploadActivity,
-    Attachment,
-    WorkspaceMember,
 )
 from .project_manager_agent import ProjectManagerAgentUser
 from .agent_user import AgentUser

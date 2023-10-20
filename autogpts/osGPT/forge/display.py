@@ -1,9 +1,9 @@
-from typing import List, Optional, Union, Any
+from typing import List, Optional, Union, Dict
 import textwrap
 
 
 class TreeNode:
-    def __init__(self, content: str, metadata: Optional[dict] = None):
+    def __init__(self, content: str, metadata: Optional[Dict] = None):
         self.content = content
         self.metadata = metadata if metadata else {}
         self.children = []
@@ -22,7 +22,7 @@ class TreeStructureDisplay:
         self,
         content: str,
         parent: Optional[TreeNode] = None,
-        metadata: Optional[dict] = None,
+        metadata: Optional[Dict] = None,
     ):
         node = TreeNode(content, metadata)
         (parent if parent else self.root).add_child(node)
