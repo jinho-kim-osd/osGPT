@@ -47,7 +47,7 @@ class User(BaseModel):
         arbitrary_types_allowed = True
 
     @abstractmethod
-    async def resolve_issues(
+    async def resolve_issue(
         self, project: Project, issue: Optional[Issue] = None
     ) -> List[Activity]:
         raise NotImplementedError

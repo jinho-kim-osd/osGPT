@@ -6,7 +6,7 @@ from .schema import User, UserType, Project, Issue, Activity, Comment
 class HumanUser(User):
     type: UserType = UserType.HUMAN
 
-    async def resolve_issues(
+    async def resolve_issue(
         self,
         project: Project,
         issue: Optional[Issue] = None,
