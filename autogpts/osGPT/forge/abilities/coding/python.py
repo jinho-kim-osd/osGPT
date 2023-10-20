@@ -119,14 +119,14 @@ async def run_python_code(
     Run a python code
     """
     query = sanitize_input(query)
-    working_dir = agent.workspace._resolve_relative_path(path)
+    working_dir = agent.workspace._resolve_relative_path(".")
     python_repl = PythonAstREPLTool(
         _globals=globals(), _locals=None, _working_directory=str(working_dir)
     )
 
-    before_attachments = set(agent.workspace.list_attachments(path))
+    before_attachments = set(agent.workspace.list_attachments(working_dir))
     output = python_repl.run(query)
-    after_attachments = set(agent.workspace.list_attachments(path))
+    after_attachments = set(agent.workspace.list_attachments(working_dir))
     new_attachments = after_attachments - before_attachments
 
     for attachment in new_attachments:

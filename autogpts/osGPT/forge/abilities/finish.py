@@ -36,7 +36,6 @@ async def finish_work(
         A comment summarizing the day's activities.
     """
     comment = await add_comment(agent, project, issue, project.key, issue.id, summary)
-    issue.add_activity(comment)
     return comment
 
 

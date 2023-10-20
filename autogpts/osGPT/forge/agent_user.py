@@ -152,9 +152,9 @@ class AgentUser(User, Agent):
         stack = 0
         prev_message_content = None
         while stack < max_chained_calls:
-            logger.info(
-                f"[{project.key}-{issue.id}] > Process chained calls (stack: {stack})"
-            )
+            # logger.info(
+            #     f"[{project.key}-{issue.id}] > Process chained calls (stack: {stack})"
+            # )
             message = await get_openai_response(messages, functions=functions)
 
             if "function_call" in message:
@@ -213,7 +213,7 @@ class AgentUser(User, Agent):
             stack += 1
 
         if stack >= max_chained_calls:
-            logger.error(
+            logger.info(
                 f"[{project.key}-{issue.id}] > Reached max chained function calls: {max_chained_calls}"
             )
 

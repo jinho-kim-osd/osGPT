@@ -437,7 +437,7 @@ class Project(BaseModel):
         sorted_issues = sorted(self.issues, key=lambda x: x.id)
 
         for issue in sorted_issues:
-            issue_info = f"📋 {issue.type} Issue #{issue.id}: '{issue.summary}' (Status: {issue.status}, Assignee: {issue.assignee.name if issue.assignee else 'None'})"
+            issue_info = f"📋 {issue.type} Issue #{issue.id}: {issue.summary} (Status: {issue.status}, Assignee: {issue.assignee.name if issue.assignee else 'None'})"
             issue_node = tree_display.add_node(issue_info, parent=project_node)
 
             if issue.description:
@@ -469,7 +469,7 @@ class Project(BaseModel):
                     "📆 Activities:", parent=issue_node
                 )
                 for activity in sorted(issue.activities, key=lambda x: x.created_at):
-                    activity_info = f"{activity.created_by.name} {activity.type} at {humanize_time(activity.created_at)}"
+                    activity_info = f"{activity}"
                     activity_node = tree_display.add_node(
                         activity_info, parent=activities_node
                     )
@@ -596,8 +596,8 @@ class Workspace(BaseModel):
             sorted_issues = sorted(project.issues, key=lambda x: x.id)
 
             for issue in sorted_issues:
-                issue_info = f"📋 {issue.type} Issue #{issue.id}: '{issue.summary}'"
-                # issue_info = f"📋 {issue.type} Issue #{issue.id}: '{issue.summary}' (Status: {issue.status}, Assignee: {issue.assignee.name if issue.assignee else 'None'})"
+                issue_info = f"📋 {issue.type} Issue #{issue.id}: {issue.summary}"
+                # issue_info = f"📋 {issue.type} Issue #{issue.id}: {issue.summary} (Status: {issue.status}, Assignee: {issue.assignee.name if issue.assignee else 'None'})"
 
                 issue_node = tree_display.add_node(issue_info, parent=project_node)
 

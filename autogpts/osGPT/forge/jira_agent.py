@@ -151,24 +151,32 @@ class JiraAgent(Agent):
             project_leader: ProjectManagerAgentUser = project.project_leader
             worker: AgentUser = await project_leader.select_worker(project)
             issue = await worker.select_issue(project)
-            if issue.status in [Status.OPEN, Status.REOPENED]:
-                activities = await worker.work_on_issue(project, issue)
-            elif issue.status == Status.IN_PROGRESS:
-                activities = await worker.resolve_issue(project, issue)
-            elif issue.status == Status.RESOLVED:
-                if worker != project_leader:
-                    raise ValueError
-                activities = await worker.review_issue(project, issue)
-            elif issue.status == Status.CLOSED:
-                raise NotImplementedError
-                activities = worker.decide_reopen(project, issue)
-            step_activities.extend(activities)
+            if issue:
+                if issue.status in [Status.OPEN, Status.REOPENED]:
+                    activities = await worker.work_on_issue(project, issue)
+                elif issue.status == Status.IN_PROGRESS:
+                    activities = await worker.resolve_issue(project, issue)
+                elif issue.status == Status.RESOLVED:
+                    if worker != project_leader:
+                        raise ValueError
+                    activities = await worker.review_issue(project, issue)
+                elif issue.status == Status.CLOSED:
+                    raise NotImplementedError
+                    activities = worker.decide_reopen(project, issue)
+                step_activities.extend(activities)
+            else:
+                for issue in unclosed_issues:
+                    activities = await project_leader.review_issue(project, issue)
+                    step_activities.extend(activities)
 
+        unclosed_issues = [
+            issue for issue in project.issues if issue.status != Status.CLOSED
+        ]
         step = await self.db.update_step(
             task_id,
             step.step_id,
             "completed",
-            output=self.workspace.display(),
+            output=project.display(),
         )
         step.is_last = len(unclosed_issues) == 0
         return step
