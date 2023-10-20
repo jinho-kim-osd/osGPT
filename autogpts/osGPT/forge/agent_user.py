@@ -1,4 +1,3 @@
-import os
 import json
 from typing import Optional, List, Any, Dict
 
@@ -82,7 +81,7 @@ class AgentUser(User, Agent):
     async def select_worker(
         self,
         project: Project,
-    ) -> Optional[User]:
+    ) -> Optional["AgentUser"]:
         raise NotImplementedError
 
     async def execute_task_with_prompt(

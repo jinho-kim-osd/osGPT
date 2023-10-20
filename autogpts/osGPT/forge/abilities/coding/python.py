@@ -1,7 +1,3 @@
-"""
-Ability for running Python code
-"""
-
 from typing import Dict, Optional, Any
 import os
 import re
@@ -13,7 +9,7 @@ from pydantic import BaseModel, Field
 
 from forge.sdk.forge_log import ForgeLogger
 from ..registry import ability
-from ...schema import Project, Issue, Comment, Attachment
+from ...schema import Project, Issue, AttachmentUploadActivity
 
 logger = ForgeLogger(__name__)
 
@@ -104,18 +100,6 @@ def sanitize_input(query: str) -> str:
             "required": True,
         },
         {
-            "name": "project_key",
-            "description": "The key of the project containing the issue",
-            "type": "string",
-            "required": True,
-        },
-        {
-            "name": "issue_id",
-            "description": "The ID of the issue whose code is to be executed",
-            "type": "number",
-            "required": True,
-        },
-        {
             "name": "path",
             "description": "The relative path in the workspace where the code will be executed",
             "type": "string",
@@ -129,8 +113,6 @@ async def run_python_code(
     project: Project,
     issue: Issue,
     query: str,
-    project_key: str,
-    issue_id: int,
     path: str,
 ) -> Dict[str, Any]:
     """
@@ -141,15 +123,16 @@ async def run_python_code(
     python_repl = PythonAstREPLTool(
         _globals=globals(), _locals=None, _working_directory=str(working_dir)
     )
+
     before_attachments = set(agent.workspace.list_attachments(path))
     output = python_repl.run(query)
     after_attachments = set(agent.workspace.list_attachments(path))
     new_attachments = after_attachments - before_attachments
 
-    target_issue = agent.workspace.get_issue(project_key, issue_id)
-
     for attachment in new_attachments:
-        target_issue.add_attachment(attachment)
+        activty = AttachmentUploadActivity(created_by=agent, attachment=attachment)
+        issue.add_attachment(attachment)
+        issue.add_activity(activty)
     return {
         "status": "executed",
         "sysout": output,

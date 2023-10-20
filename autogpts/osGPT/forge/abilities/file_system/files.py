@@ -1,30 +1,30 @@
 from typing import List
 
 from ..registry import ability
-from ...schema import Project, Issue, Attachment
+from ...schema import Project, Issue, Attachment, AttachmentUploadActivity
 from forge.sdk import ForgeLogger
 
 logger = ForgeLogger(__name__)
 
 
-@ability(
-    name="list_files",
-    description="List files in a workspace",
-    parameters=[
-        {
-            "name": "path",
-            "description": "Path to the workspace",
-            "type": "string",
-            "required": True,
-        }
-    ],
-    output_type="list[str]",
-)
-async def list_files(agent, project: Project, issue: Issue, path: str) -> List[str]:
-    """
-    List files in a workspace directory
-    """
-    return agent.workspace.list_relative_path(path)
+# @ability(
+#     name="list_files",
+#     description="List files in a workspace",
+#     parameters=[
+#         {
+#             "name": "path",
+#             "description": "Path to the workspace",
+#             "type": "string",
+#             "required": True,
+#         }
+#     ],
+#     output_type="list[str]",
+# )
+# async def list_files(agent, project: Project, issue: Issue, path: str) -> List[str]:
+#     """
+#     List files in a workspace directory
+#     """
+#     return agent.workspace.list_relative_path(path)
 
 
 @ability(
@@ -48,7 +48,7 @@ async def list_files(agent, project: Project, issue: Issue, path: str) -> List[s
 )
 async def write_file(
     agent, project: Project, issue: Issue, file_path: str, data: str
-) -> List[Attachment]:
+) -> Attachment:
     """
     Write data to a file
     """
@@ -56,8 +56,10 @@ async def write_file(
         data = data.encode()
 
     attachment = agent.workspace.write_relative_path(path=file_path, data=data)
+    activty = AttachmentUploadActivity(created_by=agent, attachment=attachment)
     issue.add_attachment(attachment)
-    return [attachment]
+    issue.add_activity(activty)
+    return attachment
 
 
 @ability(

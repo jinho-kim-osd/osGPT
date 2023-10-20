@@ -12,9 +12,12 @@ from .schema import (
     User,
     Status,
     Project,
+    Epic,
     Issue,
     IssueType,
+    IssueLinkType,
     Comment,
+    AttachmentUploadActivity,
     IssueCreationActivity,
 )
 from .project_manager_agent import ProjectManagerAgentUser
@@ -80,20 +83,37 @@ class JiraAgent(Agent):
         user_proxy_agent = self.workspace.get_user_with_name(
             os.environ.get("DEFAULT_USER_NAME")
         )
-        initial_input = f"Plan and assign issues for executing '{input}'"
+        # initial_input = f"Plan and assign issues for executing '{input}'"
+
+        epic_issue = Epic(
+            id=len(project.issues) + 1,
+            summary="Arana Hacks Challenges",
+            description="Participants will tackle a series of tasks, emphasizing real-world application of data handling, programming, web scraping, and versatile problem-solving skills. Each task is tailored to elevate in complexity, pushing the boundaries of innovation and technical expertise.",
+            assignee=project.project_leader,
+            reporter=user_proxy_agent,
+            status=Status.IN_PROGRESS,
+        )
+        activity = IssueCreationActivity(created_by=user_proxy_agent)
+        epic_issue.add_activity(activity)
+
         issue = Issue(
             id=len(project.issues) + 1,
-            summary=initial_input,
+            summary=input,
             type=IssueType.TASK,
             assignee=project.project_leader,
             reporter=user_proxy_agent,
+            parent_issue=epic_issue,
         )
         activity = IssueCreationActivity(created_by=user_proxy_agent)
         issue.add_activity(activity)
 
         existing_attachments = self.workspace.list_attachments(f"{task_id}/.")
         for attachment in existing_attachments:
+            activty = AttachmentUploadActivity(
+                created_by=user_proxy_agent, attachment=attachment
+            )
             issue.add_attachment(attachment)
+            issue.add_activity(activty)
 
         issue.add_activity(
             Comment(
@@ -127,7 +147,7 @@ class JiraAgent(Agent):
         step_activities = []
         if len(unclosed_issues) > 0:
             project_leader: ProjectManagerAgentUser = project.project_leader
-            worker = await project_leader.select_worker(project)
+            worker: AgentUser = await project_leader.select_worker(project)
             issue = await worker.select_issue(project)
             if project_leader != worker and issue.assignee != worker:
                 raise ValueError  # For Debugging

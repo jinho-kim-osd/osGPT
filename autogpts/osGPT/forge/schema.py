@@ -10,10 +10,6 @@ from .utils import humanize_time, truncate_text
 from .display import TreeStructureDisplay
 
 
-class IconBaseModel(BaseModel):
-    icon: str
-
-
 class UserType(str, Enum):
     """
     Enumeration of user types.
@@ -62,7 +58,6 @@ class IssueType(str, Enum):
     TASK = "Task"
     STORY = "Story"
     BUG = "Bug"
-    SUBTASK = "Subtask"
 
 
 class Status(str, Enum):
@@ -73,6 +68,20 @@ class Status(str, Enum):
     CLOSED = "Closed"
 
 
+class IssueLinkType(str, Enum):
+    """
+    Enumeration of potential issue link types.
+    """
+
+    BLOCKS = "blocks"
+    IS_BLOCKED_BY = "is blocked by"
+    CLONES = "clones"
+    IS_CLONED_BY = "is cloned by"
+    DUPLICATES = "duplicates"
+    IS_DUPLICATED_BY = "is duplicated by"
+    RELATES_TO = "relates to"
+
+
 class ActivityType(str, Enum):
     COMMENT = "Comment"
     ATTACHMENT_UPLOAD = "Attachment Upload"
@@ -80,6 +89,8 @@ class ActivityType(str, Enum):
     STATUS_CHANGE = "Status Change"
     ISSUE_CREATION = "Issue Creation"
     ISSUE_DELETION = "Issue Deletion"
+    ISSUE_LINK_CREATION = "Issue Link Creation"
+    ISSUE_LINK_DELETION = "Issue Link Deletion"
 
 
 class Activity(BaseModel):
@@ -91,12 +102,11 @@ class Activity(BaseModel):
         arbitrary_types_allowed = True
 
 
-class Attachment(IconBaseModel):
+class Attachment(BaseModel):
     """
     Represents a file attachment associated with a comment.
     """
 
-    icon: str = "📎"
     url: str
     filename: str
     filesize: int
@@ -105,7 +115,7 @@ class Attachment(IconBaseModel):
     def __str__(self):
         humanized_time = humanize_time(self.uploaded_at)
         return (
-            f"{self.icon} File: {self.filename}, Size: {self.filesize} bytes, "
+            f"File: {self.filename}, Size: {self.filesize} bytes, "
             f"Uploaded on: {humanized_time}"
         )
 
@@ -185,17 +195,42 @@ class IssueDeletionActivity(Activity):
         return f"{self.created_by.name} delete the Issue. {humanized_time}"
 
 
-class Issue(IconBaseModel):
-    icon: str = "📋"
+class IssueLinkCreationActivity(Activity):
+    type: ActivityType = ActivityType.ISSUE_LINK_CREATION
+    link: IssueLink
+
+    def __str__(self):
+        humanized_time = humanize_time(self.created_at)
+        return (
+            f"{self.created_by.name} created a link: {str(self.link)}. {humanized_time}"
+        )
+
+
+class IssueLinkDeletionActivity(Activity):
+    type: ActivityType = ActivityType.ISSUE_LINK_DELETION
+    link: IssueLink
+
+    def __str__(self):
+        humanized_time = humanize_time(self.created_at)
+        return (
+            f"{self.created_by.name} deleted a link: {str(self.link)}. {humanized_time}"
+        )
+
+
+class Issue(BaseModel):
     id: int
     summary: str
     description: Optional[str]
     type: IssueType
     status: Status = Status.OPEN
     assignee: Optional[User]
+    # labels: List[str] = Field(default_factory=list)
+    # start_date: Optional[datetime] = Field(None)
+    # due_date: Optional[datetime] = Field(None)
     reporter: User
-    parent_issue: Optional[Issue] = Field(None, alias="parentIssue")
-    child_issues: List[Issue] = Field(default_factory=list, alias="childIssues")
+    parent_issue: Optional[Issue]
+    child_issues: List[Issue] = Field(default_factory=list)
+    links: List[IssueLink] = Field(default_factory=list)
     activities: List[Activity] = Field(default_factory=list)
     attachments: List[Attachment] = Field(default_factory=list)
 
@@ -206,7 +241,7 @@ class Issue(IconBaseModel):
         assignee_str = (
             f", Assignee: {self.assignee.name}" if self.assignee else ", Assignee: None"
         )
-        return f"{self.icon} Issue #{self.id}: {self.summary} (Status: {self.status}{assignee_str})"
+        return f"{self.type} Issue #{self.id}: {self.summary} (Status: {self.status}{assignee_str})"
 
     def add_activity(self, activity: Activity):
         self.activities.append(activity)
@@ -214,21 +249,92 @@ class Issue(IconBaseModel):
     def add_attachment(self, attachment: Attachment):  # And added this method
         self.attachments.append(attachment)
 
+    def add_link(self, link_type: IssueLinkType, target_issue: Issue):
+        """
+        Add a link between the current issue and another issue.
+        """
+        link = IssueLink(type=link_type, source_issue=self, target_issue=target_issue)
+        self.links.append(link)
+
     def display(self) -> str:
         tree_display = TreeStructureDisplay()
 
-        issue_node = tree_display.add_node(str(self))
+        issue_info = f"📋 {self.type} Issue #{self.id}: '{self.summary}' (Status: {self.status}, Assignee: {self.assignee.name if self.assignee else 'None'})"
+        issue_node = tree_display.add_node(issue_info)
+
+        if self.description:
+            desc_node = tree_display.add_node(f"📄 Description:", parent=issue_node)
+            for paragraph in self.description.split("\n"):
+                if paragraph.strip():
+                    tree_display.add_node(paragraph.strip(), parent=desc_node)
 
         # Add Parent Issue if exists
         if self.parent_issue:
-            tree_display.add_node(
-                f"Parent: {str(self.parent_issue)}", parent=issue_node
-            )
+            parent_info = f"👪 Parent Issue: {self.parent_issue.summary} (Status: {self.parent_issue.status})"
+            parent_node = tree_display.add_node(parent_info, parent=issue_node)
+
+            if self.parent_issue.description:
+                parent_desc_node = tree_display.add_node(
+                    f"📄 Description:", parent=parent_node
+                )
+                for paragraph in self.parent_issue.description.split("\n"):
+                    if paragraph.strip():  # Ignore empty lines
+                        tree_display.add_node(
+                            paragraph.strip(), parent=parent_desc_node
+                        )
 
         # Add Sub Issues if exist
         if self.child_issues:
             for child_issue in self.child_issues:
-                tree_display.add_node(f"Sub: {str(child_issue)}", parent=issue_node)
+                child_info = (
+                    f"👶 Sub Issue: {child_issue.summary} (Status: {child_issue.status})"
+                )
+                child_node = tree_display.add_node(child_info, parent=issue_node)
+
+                if child_issue.description:
+                    child_desc_node = tree_display.add_node(
+                        f"📄 Description:", parent=child_node
+                    )
+                    for paragraph in child_issue.description.split("\n"):
+                        if paragraph.strip():  # Ignore empty lines
+                            tree_display.add_node(
+                                paragraph.strip(), parent=child_desc_node
+                            )
+
+        if self.links:
+            linked_issues_node = tree_display.add_node(
+                "🔗 Linked Issues:", parent=issue_node
+            )
+            for link in self.links:
+                link_info = (
+                    f"Type: {link.type}, Linked Issue ID: {link.target_issue.id}"
+                )
+                tree_display.add_node(link_info, parent=linked_issues_node)
+
+        if self.activities:
+            activities_node = tree_display.add_node("📆 Activities:", parent=issue_node)
+            for activity in sorted(self.activities, key=lambda x: x.created_at):
+                activity_info = f"{activity.created_by.name} {activity.type} at {humanize_time(activity.created_at)}"
+                activity_node = tree_display.add_node(
+                    activity_info, parent=activities_node
+                )
+
+                if isinstance(activity, Comment) and activity.attachments:
+                    for attachment in sorted(
+                        activity.attachments, key=lambda x: x.uploaded_at
+                    ):
+                        attachment_info = f"📎 '{attachment.filename}' (Size: {attachment.filesize} bytes, Uploaded on: {humanize_time(attachment.uploaded_at)})"
+                        tree_display.add_node(attachment_info, parent=activity_node)
+
+        if self.attachments:
+            attachments_node = tree_display.add_node(
+                "📎 Attachments:", parent=issue_node
+            )
+            for attachment in sorted(self.attachments, key=lambda x: x.uploaded_at):
+                attachment_info = f"File: {attachment.filename}, Uploaded at: {attachment.uploaded_at.strftime('%Y-%m-%d %H:%M:%S')}"
+                tree_display.add_node(attachment_info, parent=attachments_node)
+
+        return tree_display.display()
 
         # Sorting activities by their creation time
         sorted_activities = sorted(self.activities, key=lambda x: x.created_at)
@@ -251,6 +357,26 @@ class Issue(IconBaseModel):
             tree_display.add_node(str(attachment), parent=issue_node)
 
         return tree_display.display()
+
+
+class Epic(Issue):
+    type: IssueType = IssueType.EPIC
+
+
+class IssueLink(BaseModel):
+    """
+    Represents a link between two issues.
+    """
+
+    type: IssueLinkType
+    source_issue: Issue
+    target_issue: Issue
+
+    class Config:
+        arbitrary_types_allowed = True
+
+    def __str__(self):
+        return f"{self.source_issue.id} {self.type.value} {self.target_issue.id}"
 
 
 class Condition(BaseModel):
@@ -291,8 +417,7 @@ class Workflow(BaseModel):
         return False
 
 
-class Project(IconBaseModel):
-    icon: str = "📁"
+class Project(BaseModel):
     name: str
     key: str
     project_leader: User
@@ -304,7 +429,9 @@ class Project(IconBaseModel):
         arbitrary_types_allowed = True
 
     def __str__(self):
-        return f"{self.icon} Project {self.name} (Key: {self.key}, Leader: {self.project_leader.name})"
+        return (
+            f"Project {self.name} (Key: {self.key}, Leader: {self.project_leader.name})"
+        )
 
     def add_issue(self, issue: Issue):
         self.issues.append(issue)
@@ -360,8 +487,7 @@ class Project(IconBaseModel):
         return tree_display.display()
 
 
-class WorkspaceMember(IconBaseModel):
-    icon = "👤"
+class WorkspaceMember(BaseModel):
     user: User
     workspace_role: str
     additional_info: Dict[str, Any] = Field(default_factory=dict)
@@ -370,20 +496,19 @@ class WorkspaceMember(IconBaseModel):
         extra = "allow"
 
     def __str__(self):
-        return f"{self.icon} {self.user.name} (Role: {self.workspace_role})"
+        return f"{self.user.name} (Role: {self.workspace_role})"
 
     def add_info(self, key: str, value: Any):
         self.additional_info[key] = value
 
 
-class Workspace(IconBaseModel):
-    icon: str = "🌐"
+class Workspace(BaseModel):
     name: str
     projects: List[Project] = Field(default_factory=list)
     members: List[WorkspaceMember] = Field(default_factory=list)
 
     def __str__(self):
-        return f"{self.icon} Workspace: {self.name}"
+        return f"Workspace: {self.name}"
 
     def reset(self):
         self.projects = []
@@ -450,28 +575,23 @@ class Workspace(IconBaseModel):
 
     def display(self) -> str:
         tree_display = TreeStructureDisplay()
-
-        workspace_node = tree_display.add_node(str(self))
+        workspace_node = tree_display.add_node(f"🌐 {str(self)}")
 
         for member in self.members:
             tree_display.add_node(str(member), parent=workspace_node)
 
         for project in self.projects:
-            project_node = tree_display.add_node(str(project), parent=workspace_node)
+            project_node = tree_display.add_node(
+                f"📁 {str(project)}", parent=workspace_node
+            )
 
             # Sorting issues by their ID in ascending order
             sorted_issues = sorted(project.issues, key=lambda x: x.id)
 
-            # # Sorting issues by the time of their most recent activity
-            # sorted_issues = sorted(
-            #     project.issues,
-            #     key=lambda x: max(
-            #         [a.created_at for a in x.activities], default=datetime.min
-            #     ),
-            # )
-
             for issue in sorted_issues:
-                issue_node = tree_display.add_node(str(issue), parent=project_node)
+                issue_node = tree_display.add_node(
+                    f"📋 {str(issue)}", parent=project_node
+                )
 
                 # Sorting activities by their creation time within each issue
                 sorted_activities = sorted(issue.activities, key=lambda x: x.created_at)
@@ -486,13 +606,15 @@ class Workspace(IconBaseModel):
                             activity.attachments, key=lambda x: x.uploaded_at
                         )
                         for attachment in sorted_attachments:
-                            tree_display.add_node(str(attachment), parent=activity_node)
+                            tree_display.add_node(
+                                f"📎 {str(attachment)}", parent=activity_node
+                            )
 
                 # Sorting attachments by their upload time at the issue level
                 sorted_issue_attachments = sorted(
                     issue.attachments, key=lambda x: x.uploaded_at
                 )
                 for attachment in sorted_issue_attachments:
-                    tree_display.add_node(str(attachment), parent=issue_node)
+                    tree_display.add_node(f"📎 {str(attachment)}", parent=issue_node)
 
         return tree_display.display()

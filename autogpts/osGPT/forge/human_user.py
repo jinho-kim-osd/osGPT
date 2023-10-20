@@ -12,7 +12,7 @@ class HumanUser(User):
         issue: Optional[Issue] = None,
     ) -> List[Activity]:
         # TODO: To be replace with Web UI interaction
-        user_input = input()
+        user_input = input("Add Comment: ")
         comment = Comment(content=user_input, created_by=self)
         issue.add_activity(comment)
         return [comment]

@@ -2,10 +2,15 @@ from typing import Optional, Dict
 from ..registry import ability
 from ...schema import (
     Comment,
-    Workspace,
     Project,
     Issue,
     IssueType,
+    IssueLink,
+    IssueLinkType,
+    IssueCreationActivity,
+    IssueDeletionActivity,
+    IssueLinkCreationActivity,
+    IssueLinkDeletionActivity,
     AssignmentChangeActivity,
     StatusChangeActivity,
     Status,
@@ -16,18 +21,6 @@ from ...schema import (
     name="change_assignee",
     description="Change the assignee of a Jira issue",
     parameters=[
-        {
-            "name": "project_key",
-            "description": "Project Key",
-            "type": "string",
-            "required": True,
-        },
-        {
-            "name": "issue_id",
-            "description": "Issue ID",
-            "type": "number",
-            "required": True,
-        },
         {
             "name": "new_assignee",
             "description": "New assignee username",
@@ -41,21 +34,19 @@ async def change_assignee(
     agent,
     project: Project,
     issue: Issue,
-    project_key: str,
-    issue_id: int,
     new_assignee: str,
 ) -> AssignmentChangeActivity:
     """
     Change the assignee of a specified Jira issue
     """
-    target_issue = agent.workspace.get_issue(project_key, issue_id)
-    old_assignee = target_issue.assignee
+    old_assignee = issue.assignee
     new_assignee = agent.workspace.get_user_with_name(new_assignee)
-    target_issue.assignee = new_assignee
+    issue.assignee = new_assignee
+
     activity = AssignmentChangeActivity(
         old_assignee=old_assignee, new_assignee=new_assignee, created_by=agent
     )
-    target_issue.add_activity(activity)
+    issue.add_activity(activity)
     return activity
 
 
@@ -63,18 +54,6 @@ async def change_assignee(
     name="add_comment",
     description="Add a comment to a Jira issue",
     parameters=[
-        {
-            "name": "project_key",
-            "description": "Project Key",
-            "type": "string",
-            "required": True,
-        },
-        {
-            "name": "issue_id",
-            "description": "Issue ID",
-            "type": "number",
-            "required": True,
-        },
         {
             "name": "content",
             "description": "Comment content",
@@ -84,15 +63,12 @@ async def change_assignee(
     ],
     output_type="object",
 )
-async def add_comment(
-    agent, project: Project, issue: Issue, project_key: str, issue_id: int, content: str
-) -> Dict[str, str]:
+async def add_comment(agent, project: Project, issue: Issue, content: str) -> Comment:
     """
     Add a comment to a specified Jira issue
     """
-    target_issue = agent.workspace.get_issue(project_key, issue_id)
     comment = Comment(content=content, created_by=agent)
-    target_issue.add_activity(comment)
+    issue.add_activity(comment)
     return comment
 
 
@@ -100,18 +76,6 @@ async def add_comment(
     name="change_issue_status",
     description="Change the status of a Jira issue",
     parameters=[
-        {
-            "name": "project_key",
-            "description": "The key of the project containing the issue",
-            "type": "string",
-            "required": True,
-        },
-        {
-            "name": "issue_id",
-            "description": "The ID of the issue whose status is to be changed",
-            "type": "number",
-            "required": True,
-        },
         {
             "name": "new_status",
             "description": f"The new status to be assigned to the issue",
@@ -126,37 +90,32 @@ async def change_issue_status(
     agent,
     project: Project,
     issue: Issue,
-    project_key: str,
-    issue_id: int,
     new_status: str,
 ) -> StatusChangeActivity:
     """
     Change the status of a specified Jira issue
     """
-    target_project = agent.workspace.get_project_with_key(project_key)
-    target_issue = agent.workspace.get_issue(project_key, issue_id)
-
     # Verifying if the new status is valid and applicable
     if not any(
         [
             transition
-            for transition in target_project.workflow.transitions
+            for transition in project.workflow.transitions
             if transition.destination_status == new_status
         ]
     ):
         raise ValueError(
-            f"The status '{new_status}' is not a valid transition for the issue #{issue_id}"
+            f"The status '{new_status}' is not a valid transition for the issue #{issue.id}"
         )
 
     # Changing the status of the issue
-    old_status = target_issue.status
-    target_issue.status = Status(new_status)
+    old_status = issue.status
+    issue.status = Status(new_status)
 
     # Logging the status change as an activity
     activity = StatusChangeActivity(
         old_status=old_status, new_status=new_status, created_by=agent
     )
-    target_issue.add_activity(activity)
+    issue.add_activity(activity)
     return activity
 
 
@@ -164,12 +123,6 @@ async def change_issue_status(
     name="create_issue",
     description="Create a new Jira issue",
     parameters=[
-        {
-            "name": "project_key",
-            "description": "Project Key",
-            "type": "string",
-            "required": True,
-        },
         {
             "name": "summary",
             "description": "Issue summary",
@@ -186,12 +139,12 @@ async def change_issue_status(
             "name": "type",
             "description": "Issue type",
             "type": "string",
-            "enum": [e.value for e in IssueType],
+            "enum": [e.value for e in IssueType if e != IssueType.EPIC],
             "required": True,
         },
         {
             "name": "parent_issue_id",
-            "description": "Parent Issue ID (Issue type must be SUBTASK when a parent issue is provided)",
+            "description": "If this issue is a subtask or related to another issue, provide the ID of the parent issue. This can be an Epic or any other issue type.",
             "type": "number",
             "required": False,
         },
@@ -202,24 +155,20 @@ async def create_issue(
     agent,
     project: Project,
     issue: Issue,
-    project_key: str,
     summary: str,
     assignee: str,
     type: str,
     parent_issue_id: Optional[int] = None,
-) -> Issue:
+) -> IssueCreationActivity:
     """
     Create a new Jira issue with the specified summary, assignee, and type
     """
-    # Getting the project from the workspace using the project_key
-    project = agent.workspace.get_project_with_key(project_key)
-
     # Getting the user from the workspace using the assignee username
     assignee_user = agent.workspace.get_user_with_name(assignee)
 
     parent_issue = None
     if parent_issue_id is not None:
-        parent_issue = agent.workspace.get_issue(project_key, parent_issue_id)
+        parent_issue = agent.workspace.get_issue(project.key, parent_issue_id)
 
     # Creating a new issue
     issue = Issue(
@@ -231,11 +180,108 @@ async def create_issue(
         parent_issue=parent_issue,
     )
 
-    # Ensure the issue type is SUBTASK if a parent issue is provided
-    if parent_issue is not None and issue.type != IssueType.SUBTASK:
-        raise ValueError("Issue type must be SUBTASK when a parent issue is provided")
-
     # Adding the issue to the workspace
     project.add_issue(issue)
+    activity = IssueCreationActivity(created_by=agent)
+    issue.add_activity(activity)
+    return activity
 
-    return issue
+
+@ability(
+    name="create_issue_link",
+    description="Create a link between two Jira issues",
+    parameters=[
+        {
+            "name": "source_issue_id",
+            "description": "ID of the source issue",
+            "type": "number",
+            "required": True,
+        },
+        {
+            "name": "target_issue_id",
+            "description": "ID of the target issue",
+            "type": "number",
+            "required": True,
+        },
+        {
+            "name": "link_type",
+            "description": "Type of the link between the issues",
+            "type": "string",
+            "enum": [e.value for e in IssueLinkType],
+            "required": True,
+        },
+    ],
+    output_type="object",
+)
+async def create_issue_link(
+    agent,
+    project: Project,
+    issue: Issue,
+    source_issue_id: int,
+    target_issue_id: int,
+    link_type: str,
+) -> IssueLink:
+    """
+    Create a link between two specified Jira issues
+    """
+    source_issue = agent.workspace.get_issue(project.key, source_issue_id)
+    target_issue = agent.workspace.get_issue(project.key, target_issue_id)
+    link = IssueLink(
+        type=IssueLinkType(link_type),
+        source_issue=source_issue,
+        target_issue=target_issue,
+    )
+    source_issue.linked_issues.append(link)
+    activity = IssueLinkCreationActivity(link=link, created_by=agent)
+    issue.add_activity(
+        activity
+    )  # TODO: should we add this activity to source and target issue?
+    return activity
+
+
+@ability(
+    name="remove_issue_link",
+    description="Remove a link between two Jira issues",
+    parameters=[
+        {
+            "name": "source_issue_id",
+            "description": "ID of the source issue",
+            "type": "number",
+            "required": True,
+        },
+        {
+            "name": "target_issue_id",
+            "description": "ID of the target issue",
+            "type": "number",
+            "required": True,
+        },
+    ],
+    output_type="object",
+)
+async def remove_issue_link(
+    agent,
+    project: Project,
+    issue: Issue,
+    source_issue_id: int,
+    target_issue_id: int,
+) -> IssueDeletionActivity:
+    """
+    Remove a link between two specified Jira issues
+    """
+    source_issue = agent.workspace.get_issue(project.key, source_issue_id)
+    target_issue = agent.workspace.get_issue(project.key, target_issue_id)
+    link_to_remove = None
+
+    for link in source_issue.linked_issues:
+        if link.target_issue == target_issue:
+            link_to_remove = link
+            break
+
+    if link_to_remove:
+        source_issue.linked_issues.remove(link_to_remove)
+
+    activity = IssueLinkDeletionActivity(link=link, created_by=agent)
+    issue.add_activity(
+        activity
+    )  # TODO: should we add this activity to source and target issue?
+    return activity
