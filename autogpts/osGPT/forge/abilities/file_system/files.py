@@ -48,7 +48,7 @@ logger = ForgeLogger(__name__)
 )
 async def write_file(
     agent, project: Project, issue: Issue, file_path: str, data: str
-) -> Attachment:
+) -> AttachmentUploadActivity:
     """
     Write data to a file
     """
@@ -59,7 +59,7 @@ async def write_file(
     activty = AttachmentUploadActivity(created_by=agent, attachment=attachment)
     issue.add_attachment(attachment)
     issue.add_activity(activty)
-    return attachment
+    return activty
 
 
 @ability(

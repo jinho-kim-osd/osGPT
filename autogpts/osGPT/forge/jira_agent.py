@@ -163,12 +163,23 @@ class JiraAgent(Agent):
                 activities = await worker.resolve_issue(project, issue)
             elif issue.status == Status.RESOLVED:
                 if worker.id != project_leader.id:
-                    raise ValueError
-                activities = await worker.review_issue(project, issue)
+                    logger.error("Maybe worse results.")
+                    activities = await worker.resolve_issue(project, issue)
+                else:
+                    activities = await worker.review_issue(project, issue)
             step_activities.extend(activities)
 
         for activity in step_activities:
-            if isinstance(activity, Comment):
+            if isinstance(activity, AttachmentUploadActivity):
+                await self.db.create_artifact(
+                    task_id,
+                    activity.attachment.filename,
+                    activity.attachment.filename,  # TODO: correct as file path
+                    agent_created=True,
+                    step_id=step.step_id,
+                )
+            elif isinstance(activity, Comment):
+                logger.info(str(activity), str(activity.attachments))
                 if activity.attachments:
                     for attachment in activity.attachments:
                         await self.db.create_artifact(

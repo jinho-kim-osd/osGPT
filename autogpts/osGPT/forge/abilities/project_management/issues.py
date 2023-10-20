@@ -100,6 +100,13 @@ async def add_comment(agent, project: Project, issue: Issue, content: str) -> Co
     description="Change the status of a Jira issue",
     parameters=[
         {
+            "name": "old_status",
+            "description": f"The current status of the issue",
+            "type": "string",
+            "enum": [e.value for e in Status if e != Status.CLOSED],
+            "required": True,
+        },
+        {
             "name": "new_status",
             "description": f"The new status to be assigned to the issue",
             "type": "string",
@@ -113,6 +120,7 @@ async def change_issue_status(
     agent,
     project: Project,
     issue: Issue,
+    old_status: str,
     new_status: str,
 ) -> StatusChangeActivity:
     """

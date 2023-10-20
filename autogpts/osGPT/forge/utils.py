@@ -47,7 +47,9 @@ async def get_openai_response(
     functions: Optional[Dict[str, Any]] = None,
     function_call: Optional[str] = None,
     temperature: float = 0.2,
-    top_p: float = 0.3,
+    top_p: float = 0.75,
+    presence_penalty: float = 0.5,
+    frequency_penalty: float = 0.5,
     n: int = 1,
     **kwargs,
 ) -> Union[Dict[str, str], Dict[str, Dict]]:
@@ -63,6 +65,8 @@ async def get_openai_response(
         "messages": messages,
         "temperature": temperature,
         "top_p": top_p,
+        "presence_penalty": presence_penalty,
+        "frequency_penalty": frequency_penalty,
         **kwargs,
     }
     if functions is not None:

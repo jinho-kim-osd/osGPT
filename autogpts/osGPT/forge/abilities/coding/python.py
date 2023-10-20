@@ -89,6 +89,7 @@ def sanitize_input(query: str) -> str:
         "Input should be a valid python command. "
         "When using this tool, sometimes output is abbreviated - "
         "make sure it does not look abbreviated before using it in your answer."
+        "Note: All file paths used within the Python code should be within the specified project_root_path."
         # "Note: CSV files can be either comma-separated or tab-separated. "
         # "All csv files are tab-separated."  # TODO: should be in prompt?
     ),
@@ -101,7 +102,7 @@ def sanitize_input(query: str) -> str:
         },
         {
             "name": "project_root_path",
-            "description": "The project root path",
+            "description": "The project root path. All file paths specified in the Python code must be within this directory.",
             "type": "string",
             "required": True,
         },

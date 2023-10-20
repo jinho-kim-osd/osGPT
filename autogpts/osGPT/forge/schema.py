@@ -122,6 +122,15 @@ class Attachment(BaseModel):
     def __hash__(self):
         return hash((self.filename, self.filesize, self.url))
 
+    def __eq__(self, other):
+        if isinstance(other, Attachment):
+            return (
+                self.filename == other.filename
+                and self.filesize == other.filesize
+                and self.url == other.url
+            )
+        return False
+
 
 class Comment(Activity):
     type: ActivityType = ActivityType.COMMENT

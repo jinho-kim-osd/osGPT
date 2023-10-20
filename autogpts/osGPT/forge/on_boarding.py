@@ -72,6 +72,7 @@ def setup_workspace(db: ForgeDatabase) -> CollaborationWorkspace:
         workspace=workspace,
         ability_names=[
             "read_file",
+            "write_file",
             "list_files",
             "change_issue_status",
             "add_comment",
@@ -90,6 +91,7 @@ def setup_workspace(db: ForgeDatabase) -> CollaborationWorkspace:
         workspace=workspace,
         ability_names=[
             "read_file",
+            "write_file",
             "list_files",
             "change_issue_status",
             "add_comment",
@@ -142,5 +144,4 @@ def setup_workspace(db: ForgeDatabase) -> CollaborationWorkspace:
         workspace.add_member(user, role)
         project.add_member(user, role)
     workspace.add_project(project)
-    print(project.display())
     return workspace

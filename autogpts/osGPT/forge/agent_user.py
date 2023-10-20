@@ -71,11 +71,13 @@ class AgentUser(User, Agent):
     async def work_on_issue(self, project: Project, issue: Issue) -> List[Activity]:
         old_status = issue.status
         issue.status = Status.IN_PROGRESS
-        activities = [
-            StatusChangeActivity(
-                old_status=old_status, new_status=issue.status, created_by=self
-            )
-        ]
+
+        activity = StatusChangeActivity(
+            old_status=old_status, new_status=issue.status, created_by=self
+        )
+        issue.add_activity(activity)
+
+        activities = [activity]
         return activities
 
     async def resolve_issue(self, project: Project, issue: Issue) -> List[Activity]:
@@ -151,7 +153,6 @@ class AgentUser(User, Agent):
 
         while not is_activity_type and stack < max_chained_calls:
             message = await get_openai_response(messages, functions=functions)
-            print(messages)
 
             if "function_call" in message:
                 fn_name = message["function_call"]["name"]
@@ -187,7 +188,7 @@ class AgentUser(User, Agent):
                 )
             else:
                 if force_function:
-                    logger.info(f"[{project.key}-{issue.id}] > Invalid Response.")
+                    logger.error(f"[{project.key}-{issue.id}] > Invalid Response.")
                     messages.append({"role": "user", "content": "Use functions only."})
                 else:
                     raise NotImplementedError
