@@ -41,11 +41,6 @@ class JiraAgent(Agent):
         self.workspace = workspace
         self.abilities = AbilityRegister(self, None)
 
-    def setup_workspace(self):
-        self.user_proxy_agent = self.workspace.get_user_with_name(
-            os.environ.get("DEFAULT_USER_NAME")
-        )
-
     def reset(self):
         # Remove all issues
         for project in self.workspace.projects:
@@ -82,15 +77,18 @@ class JiraAgent(Agent):
     def create_issue_from_user_request(
         self, task_id: str, project: Project, input: str
     ):
+        user_proxy_agent = self.workspace.get_user_with_name(
+            os.environ.get("DEFAULT_USER_NAME")
+        )
         initial_input = f"Plan and assign issues for executing '{input}'"
         issue = Issue(
             id=len(project.issues) + 1,
             summary=initial_input,
             type=IssueType.TASK,
             assignee=project.project_leader,
-            reporter=self.user_proxy_agent,
+            reporter=user_proxy_agent,
         )
-        activity = IssueCreationActivity(created_by=self.user_proxy_agent)
+        activity = IssueCreationActivity(created_by=user_proxy_agent)
         issue.add_activity(activity)
 
         existing_attachments = self.workspace.list_attachments(f"{task_id}/.")
@@ -100,7 +98,7 @@ class JiraAgent(Agent):
         issue.add_activity(
             Comment(
                 content=f"Workspace Root Path: ./{task_id}",
-                created_by=self.user_proxy_agent,
+                created_by=user_proxy_agent,
             )
         )
         project.add_issue(issue)

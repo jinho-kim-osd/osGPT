@@ -6,6 +6,7 @@ from .agent_user import AgentUser, TERMINATION_WORD
 from .schema import (
     Project,
     Issue,
+    User,
 )
 from .utils import get_openai_response
 
@@ -35,7 +36,7 @@ class ProjectManagerAgentUser(AgentUser):
     async def select_worker(
         self,
         project: Project,
-    ) -> Optional[AgentUser]:
+    ) -> Optional[User]:
         prompt_engine = PromptEngine("select-worker")
         system_prompt = prompt_engine.load_prompt(template="system")
         user_prompt = prompt_engine.load_prompt(

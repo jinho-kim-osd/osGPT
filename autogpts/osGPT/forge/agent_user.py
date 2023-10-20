@@ -72,6 +72,19 @@ class AgentUser(User, Agent):
             project, issue, "resolve-issue", None
         )
 
+    async def review_issue(
+        self,
+        project: Project,
+        issue: Issue,
+    ) -> Dict[str, Any]:
+        raise NotImplementedError
+
+    async def select_worker(
+        self,
+        project: Project,
+    ) -> Optional[User]:
+        raise NotImplementedError
+
     async def execute_task_with_prompt(
         self,
         project: Project,
