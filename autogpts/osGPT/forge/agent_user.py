@@ -14,6 +14,7 @@ from .schema import (
     User,
     Project,
     Issue,
+    IssueLinkType,
     Comment,
     UserType,
     Activity,
@@ -23,8 +24,6 @@ from .schema import (
 from .db import ForgeDatabase
 
 logger = ForgeLogger(__name__)
-
-TERMINATION_WORD = "<TERMINATE>"
 
 
 class AgentUser(User, Agent):
@@ -45,15 +44,28 @@ class AgentUser(User, Agent):
 
     async def select_issue(self, project: Project) -> Optional[Issue]:
         for issue in project.issues:
-            # TODO: blocked, resolved, closed, ...
-            if issue.assignee == self and issue.status in [
-                Status.OPEN,
-                Status.REOPENED,
-                Status.IN_PROGRESS,
-            ]:
+            if issue.assignee and issue.assignee.id == self.id:
+                # Status check
+                if issue.status not in [
+                    Status.OPEN,
+                    Status.REOPENED,
+                    Status.IN_PROGRESS,
+                ]:
+                    continue
+
+                # Link type check
+                blocked_issues = [
+                    link
+                    for link in issue.links
+                    if link.type == IssueLinkType.IS_BLOCKED_BY
+                ]
+                if blocked_issues:
+                    continue
+
+                # If the issue satisfies all the conditions, return it
                 return issue
-            else:
-                raise NotImplementedError
+
+        # If no appropriate issue is found
         return None
 
     async def work_on_issue(self, project: Project, issue: Issue) -> List[Activity]:
@@ -100,9 +112,13 @@ class AgentUser(User, Agent):
         system_prompt = prompt_engine.load_prompt(
             template="system", workspace_role=workspace_role
         )
+
+        current_workspace = self.workspace.display()
+        current_issue = issue.display()
         user_prompt = prompt_engine.load_prompt(
             template="user",
-            current_workspace_structure=self.workspace.display(),
+            current_workspace=current_workspace,
+            current_issue=current_issue,
         )
         messages = [
             {
@@ -178,7 +194,7 @@ class AgentUser(User, Agent):
                 logger.info(
                     f"[{project.key}-{issue.id}] > Function response: {fn_response_str}"
                 )
-            elif message["content"] in [TERMINATION_WORD, "", prev_message_content]:
+            elif message["content"] in ["", prev_message_content]:
                 break
             else:
                 if force_function:

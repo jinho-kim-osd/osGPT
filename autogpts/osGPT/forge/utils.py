@@ -76,7 +76,6 @@ async def get_openai_response(
             json=json_data,
         )
         response = response.json()
-        print(response)
     except Exception as e:
         print("Unable to generate ChatCompletion response")
         print(f"Exception: {e}")

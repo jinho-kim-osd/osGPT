@@ -2,7 +2,7 @@ from typing import Optional, Dict, Any
 
 from forge.sdk import ForgeLogger, PromptEngine
 
-from .agent_user import AgentUser, TERMINATION_WORD
+from .agent_user import AgentUser
 from .schema import (
     Project,
     Issue,
@@ -19,10 +19,13 @@ class ProjectManagerAgentUser(AgentUser):
         project: Project,
     ) -> Optional[User]:
         prompt_engine = PromptEngine("select-worker")
-        system_prompt = prompt_engine.load_prompt(template="system")
+        workspace_role = self.workspace.get_workspace_role_with_user_name(self.name)
+        system_prompt = prompt_engine.load_prompt(
+            template="system", workspace_role=workspace_role
+        )
         user_prompt = prompt_engine.load_prompt(
             template="user",
-            current_workspace_structure=self.workspace.display(),
+            current_project=project.display(),
         )
         messages = [
             {
@@ -35,7 +38,7 @@ class ProjectManagerAgentUser(AgentUser):
         logger.info(
             f"[{project.key}] {self.name} > Next speaker is {message['content']}"
         )
-        if message["content"] == TERMINATION_WORD:
+        if message["content"] == "<TERMINATE>":
             return None
         speaker = self.workspace.get_user_with_name(message["content"])
         return speaker

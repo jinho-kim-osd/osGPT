@@ -141,6 +141,8 @@ class JiraAgent(Agent):
         if step_request.input:
             self.create_issue_from_user_request(task_id, project, step_request.input)
 
+        print(project.display())
+
         unclosed_issues = [
             issue for issue in project.issues if issue.status != Status.CLOSED
         ]
@@ -149,16 +151,14 @@ class JiraAgent(Agent):
             project_leader: ProjectManagerAgentUser = project.project_leader
             worker: AgentUser = await project_leader.select_worker(project)
             issue = await worker.select_issue(project)
-            if project_leader != worker and issue.assignee != worker:
-                raise ValueError  # For Debugging
             if issue.status in [Status.OPEN, Status.REOPENED]:
-                activities = worker.work_on_issue(project, issue)
+                activities = await worker.work_on_issue(project, issue)
             elif issue.status == Status.IN_PROGRESS:
-                activities = worker.resolve_issue(project, issue)
+                activities = await worker.resolve_issue(project, issue)
             elif issue.status == Status.RESOLVED:
                 if worker != project_leader:
                     raise ValueError
-                activities = worker.review_issue(project, issue)
+                activities = await worker.review_issue(project, issue)
             elif issue.status == Status.CLOSED:
                 raise NotImplementedError
                 activities = worker.decide_reopen(project, issue)
