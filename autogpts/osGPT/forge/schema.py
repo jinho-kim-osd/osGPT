@@ -270,8 +270,12 @@ class Issue(BaseModel):
 
         # Add Parent Issue if exists
         if self.parent_issue:
-            parent_info = f"👪 Parent Issue: {self.parent_issue.summary} (Status: {self.parent_issue.status})"
-            parent_node = tree_display.add_node(parent_info, parent=issue_node)
+            parent_issue = self.parent_issue
+            parent_issue_node = tree_display.add_node(
+                "👪 Parent Issue:", parent=issue_node
+            )
+            parent_info = f"📋 {parent_issue.type} Issue #{parent_issue.id}: '{parent_issue.summary}' (Status: {parent_issue.status}, Assignee: {parent_issue.assignee.name if parent_issue.assignee else 'None'})"
+            parent_node = tree_display.add_node(parent_info, parent=parent_issue_node)
 
             if self.parent_issue.description:
                 parent_desc_node = tree_display.add_node(
@@ -285,18 +289,19 @@ class Issue(BaseModel):
 
         # Add Sub Issues if exist
         if self.child_issues:
+            child_issues_node = tree_display.add_node(
+                "👶 Sub Issues:", parent=issue_node
+            )
             for child_issue in self.child_issues:
-                child_info = (
-                    f"👶 Sub Issue: {child_issue.summary} (Status: {child_issue.status})"
-                )
-                child_node = tree_display.add_node(child_info, parent=issue_node)
+                child_info = f"📋 {child_issue.type} Issue #{child_issue.id}: '{child_issue.summary}' (Status: {child_issue.status}, Assignee: {child_issue.assignee.name if child_issue.assignee else 'None'})"
+                child_node = tree_display.add_node(child_info, parent=child_issues_node)
 
                 if child_issue.description:
                     child_desc_node = tree_display.add_node(
                         f"📄 Description:", parent=child_node
                     )
                     for paragraph in child_issue.description.split("\n"):
-                        if paragraph.strip():  # Ignore empty lines
+                        if paragraph.strip():
                             tree_display.add_node(
                                 paragraph.strip(), parent=child_desc_node
                             )
@@ -331,28 +336,6 @@ class Issue(BaseModel):
             for attachment in sorted(self.attachments, key=lambda x: x.uploaded_at):
                 attachment_info = f"File: {attachment.filename}, Uploaded at: {attachment.uploaded_at.strftime('%Y-%m-%d %H:%M:%S')}"
                 tree_display.add_node(attachment_info, parent=attachments_node)
-
-        return tree_display.display()
-
-        # Sorting activities by their creation time
-        sorted_activities = sorted(self.activities, key=lambda x: x.created_at)
-
-        for activity in sorted_activities:
-            activity_node = tree_display.add_node(str(activity), parent=issue_node)
-
-            if isinstance(activity, Comment) and activity.attachments:
-                # Sorting attachments by their upload time within each activity
-                print(activity.attachments)
-                sorted_attachments = sorted(
-                    activity.attachments, key=lambda x: x.uploaded_at
-                )
-                for attachment in sorted_attachments:
-                    tree_display.add_node(str(attachment), parent=activity_node)
-
-        # Sorting attachments by their upload time at the issue level
-        sorted_issue_attachments = sorted(self.attachments, key=lambda x: x.uploaded_at)
-        for attachment in sorted_issue_attachments:
-            tree_display.add_node(str(attachment), parent=issue_node)
 
         return tree_display.display()
 
@@ -587,32 +570,33 @@ class Workspace(BaseModel):
             sorted_issues = sorted(project.issues, key=lambda x: x.id)
 
             for issue in sorted_issues:
-                issue_node = tree_display.add_node(
-                    f"📋 {str(issue)}", parent=project_node
-                )
+                issue_info = f"📋 {issue.type} Issue #{issue.id}: '{issue.summary}'"
+                # issue_info = f"📋 {issue.type} Issue #{issue.id}: '{issue.summary}' (Status: {issue.status}, Assignee: {issue.assignee.name if issue.assignee else 'None'})"
 
-                # Sorting activities by their creation time within each issue
-                sorted_activities = sorted(issue.activities, key=lambda x: x.created_at)
-                for activity in sorted_activities:
-                    activity_node = tree_display.add_node(
-                        str(activity), parent=issue_node
-                    )
+                issue_node = tree_display.add_node(issue_info, parent=project_node)
 
-                    if isinstance(activity, Comment) and activity.attachments:
-                        # Sorting attachments by their upload time within each activity
-                        sorted_attachments = sorted(
-                            activity.attachments, key=lambda x: x.uploaded_at
-                        )
-                        for attachment in sorted_attachments:
-                            tree_display.add_node(
-                                f"📎 {str(attachment)}", parent=activity_node
-                            )
+                # # Sorting activities by their creation time within each issue
+                # sorted_activities = sorted(issue.activities, key=lambda x: x.created_at)
+                # for activity in sorted_activities:
+                #     activity_node = tree_display.add_node(
+                #         str(activity), parent=issue_node
+                #     )
 
-                # Sorting attachments by their upload time at the issue level
-                sorted_issue_attachments = sorted(
-                    issue.attachments, key=lambda x: x.uploaded_at
-                )
-                for attachment in sorted_issue_attachments:
-                    tree_display.add_node(f"📎 {str(attachment)}", parent=issue_node)
+                #     if isinstance(activity, Comment) and activity.attachments:
+                #         # Sorting attachments by their upload time within each activity
+                #         sorted_attachments = sorted(
+                #             activity.attachments, key=lambda x: x.uploaded_at
+                #         )
+                #         for attachment in sorted_attachments:
+                #             tree_display.add_node(
+                #                 f"📎 {str(attachment)}", parent=activity_node
+                #             )
+
+                # # Sorting attachments by their upload time at the issue level
+                # sorted_issue_attachments = sorted(
+                #     issue.attachments, key=lambda x: x.uploaded_at
+                # )
+                # for attachment in sorted_issue_attachments:
+                #     tree_display.add_node(f"📎 {str(attachment)}", parent=issue_node)
 
         return tree_display.display()

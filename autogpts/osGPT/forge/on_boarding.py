@@ -122,49 +122,4 @@ def setup_workspace(db: ForgeDatabase) -> CollaborationWorkspace:
         workflow=workflow,
     )
     workspace.add_project(project)
-
-    # Test
-    epic_issue = Epic(
-        id=len(project.issues) + 1,
-        summary="Arana Hacks Challenges",
-        description="Participants will tackle a series of tasks, emphasizing real-world application of data handling, programming, web scraping, and versatile problem-solving skills. Each task is tailored to elevate in complexity, pushing the boundaries of innovation and technical expertise.",
-        assignee=project.project_leader,
-        reporter=user_proxy_agent,
-        status=Status.IN_PROGRESS,
-    )
-    activity = IssueCreationActivity(created_by=user_proxy_agent)
-    epic_issue.add_activity(activity)
-    project.add_issue(epic_issue)
-
-    issue = Issue(
-        id=len(project.issues) + 1,
-        summary="Write a word 'Washington' to .txt file.",
-        description="These resources cover everything from setting up AutoGPT to using it for specific applications and creating your own AI agents. Feel free to join the AutoGPT Discord for communication and mentorship throughout the hackathon.",
-        type=IssueType.TASK,
-        assignee=project.project_leader,
-        reporter=user_proxy_agent,
-        parent_issue=epic_issue,
-        child_issues=[epic_issue, epic_issue],
-    )
-    epic_issue.add_link(IssueLinkType.IS_BLOCKED_BY, issue)
-    issue.add_link(IssueLinkType.BLOCKS, epic_issue)
-    project.add_issue(issue)
-    activity = IssueCreationActivity(created_by=user_proxy_agent)
-    issue.add_activity(activity)
-
-    existing_attachments = workspace.list_attachments(f".")
-    for attachment in existing_attachments:
-        activty = AttachmentUploadActivity(
-            created_by=user_proxy_agent, attachment=attachment
-        )
-        issue.add_attachment(attachment)
-        issue.add_activity(activty)
-
-    issue.add_activity(
-        Comment(
-            content=f"Workspace Root Path: ./",
-            created_by=user_proxy_agent,
-        )
-    )
-    print(issue.display())
     return workspace

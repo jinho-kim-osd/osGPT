@@ -1,4 +1,4 @@
-from typing import Optional, Dict
+from typing import Optional
 from ..registry import ability
 from ...schema import (
     Comment,
@@ -48,6 +48,29 @@ async def change_assignee(
     )
     issue.add_activity(activity)
     return activity
+
+
+@ability(
+    name="view_issue_details",
+    description="View the details of a Jira issue",
+    parameters=[
+        {
+            "name": "issue_id",
+            "description": "ID of the issue to view details",
+            "type": "number",
+            "required": True,
+        },
+    ],
+    output_type="string",
+)
+async def view_issue_details(
+    agent, project: Project, issue: Issue, issue_id: int
+) -> str:
+    """
+    View the details of a specified Jira issue
+    """
+    parent_issue = agent.workspace.get_issue(project.key, issue_id)
+    return parent_issue.display()
 
 
 @ability(
