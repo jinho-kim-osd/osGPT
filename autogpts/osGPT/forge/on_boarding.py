@@ -39,10 +39,10 @@ def setup_workspace(db: ForgeDatabase) -> CollaborationWorkspace:
         role=Role.OWNER,
         workspace=workspace,
         ability_names=[
-            # "read_file",
-            # "list_files",
-            # "change_issue_status",
+            "read_file",
+            "list_files",
             "add_comment",
+            "finish_work",
         ],
         db=db,
     )

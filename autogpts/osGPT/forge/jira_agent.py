@@ -179,7 +179,6 @@ class JiraAgent(Agent):
                     step_id=step.step_id,
                 )
             elif isinstance(activity, Comment):
-                logger.info(str(activity), str(activity.attachments))
                 if activity.attachments:
                     for attachment in activity.attachments:
                         await self.db.create_artifact(
