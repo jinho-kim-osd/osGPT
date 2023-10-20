@@ -36,6 +36,7 @@ from webdriver_manager.microsoft import EdgeChromiumDriverManager as EdgeDriverM
 
 from ..registry import ability
 from ...schema import Project, Issue
+from ..schema import AbilityResult
 from forge.sdk.errors import *
 import re
 from urllib.parse import urljoin, urlparse
@@ -99,11 +100,11 @@ class BrowsingError(CommandExecutionError):
             "required": False,
         },
     ],
-    output_type="string",
+    output_type="object",
 )
 async def read_webpage(
     agent, project: Project, issue: Issue, url: str, question: str = ""
-) -> Tuple(str, List[str]):
+) -> AbilityResult:
     """Browse a website and return the answer and links to the user
     Args:
         url (str): The url of the website to browse
@@ -124,7 +125,12 @@ async def read_webpage(
         # Limit links to LINKS_TO_RETURN
         if len(links) > LINKS_TO_RETURN:
             links = links[:LINKS_TO_RETURN]
-        return (text, links)
+        return AbilityResult(
+            ability_name="read_webpage",
+            ability_args={"url": url, "question": question},
+            success=True,
+            message=str((text, links)),
+        )
 
     except WebDriverException as e:
         # These errors are often quite long and include lots of context.

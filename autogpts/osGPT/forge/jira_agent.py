@@ -53,7 +53,8 @@ class JiraAgent(Agent):
 
     async def create_task(self, task_request: TaskRequestBody) -> Task:
         self.reset()
-        return await super().create_task(task_request)
+        task = await super().create_task(task_request)
+        return task
 
     async def create_issue(
         self,
@@ -113,7 +114,7 @@ class JiraAgent(Agent):
         activity = IssueCreationActivity(created_by=user_proxy_agent)
         issue.add_activity(activity)
 
-        existing_attachments = self.workspace.list_attachments(f"{task_id}/.")
+        existing_attachments = self.workspace.list_attachments(f"./{task_id}/.")
         for attachment in existing_attachments:
             activty = AttachmentUploadActivity(
                 created_by=user_proxy_agent, attachment=attachment
@@ -123,7 +124,7 @@ class JiraAgent(Agent):
 
         issue.add_activity(
             Comment(
-                content=f"Project Root Path: ./{task_id}",
+                content=f"Project Root Path is './{task_id}'. Operate exclusively within this directory.",
                 created_by=user_proxy_agent,
             )
         )

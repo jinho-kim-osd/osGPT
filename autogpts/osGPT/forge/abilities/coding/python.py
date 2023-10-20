@@ -9,6 +9,7 @@ from pydantic import BaseModel, Field
 
 from forge.sdk.forge_log import ForgeLogger
 from ..registry import ability
+from ..schema import AbilityResult
 from ...schema import Project, Issue, AttachmentUploadActivity
 
 logger = ForgeLogger(__name__)
@@ -115,7 +116,7 @@ async def run_python_code(
     issue: Issue,
     query: str,
     project_root_path: str,
-) -> Dict[str, Any]:
+) -> AbilityResult:
     """
     Run a python code
     """
@@ -130,12 +131,18 @@ async def run_python_code(
     after_attachments = set(agent.workspace.list_attachments(project_root_path))
     new_attachments = after_attachments - before_attachments
 
+    activities = []
     for attachment in new_attachments:
         activty = AttachmentUploadActivity(created_by=agent, attachment=attachment)
         issue.add_attachment(attachment)
         issue.add_activity(activty)
-    return {
-        "status": "executed",
-        "sysout": output,
-        "files": new_attachments,
-    }
+        activities.append(activty)
+
+    return AbilityResult(
+        ability_name="read_webpage",
+        ability_args={"query": query, "project_root_path": project_root_path},
+        success=True,
+        message=output,
+        activities=activities,
+        attachments=new_attachments,
+    )

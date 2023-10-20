@@ -495,8 +495,14 @@ class Project(BaseModel):
         tree_display = TreeStructureDisplay()
         project_node = tree_display.add_node(f"📁 {str(self)}")
 
-        for member in self.members:
-            tree_display.add_node(str(member), parent=project_node)
+        if self.members:
+            project_members_node = tree_display.add_node(
+                "👤 Members:", parent=project_node
+            )
+            for member in self.members:
+                member_node = tree_display.add_node(
+                    str(member), parent=project_members_node
+                )
 
         # Sorting issues by their ID in ascending order
         sorted_issues = sorted(self.issues, key=lambda x: x.id)

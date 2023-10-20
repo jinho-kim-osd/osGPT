@@ -1,5 +1,6 @@
 from typing import Optional
 from ..registry import ability
+from ..schema import AbilityResult
 from ...schema import (
     Comment,
     Project,
@@ -35,19 +36,25 @@ async def change_assignee(
     project: Project,
     issue: Issue,
     new_assignee: str,
-) -> AssignmentChangeActivity:
+) -> AbilityResult:
     """
     Change the assignee of a specified Jira issue
     """
+    new_assignee_name = new_assignee
     old_assignee = issue.assignee
-    new_assignee = project.get_user_with_name(new_assignee)
+    new_assignee = project.get_user_with_name(new_assignee_name)
     issue.assignee = new_assignee
 
     activity = AssignmentChangeActivity(
         old_assignee=old_assignee, new_assignee=new_assignee, created_by=agent
     )
     issue.add_activity(activity)
-    return activity
+    return AbilityResult(
+        ability_name="change_assignee",
+        ability_args={"new_assignee": new_assignee_name},
+        success=True,
+        activities=[activity],
+    )
 
 
 @ability(
@@ -61,16 +68,21 @@ async def change_assignee(
             "required": True,
         },
     ],
-    output_type="string",
+    output_type="object",
 )
 async def view_issue_details(
     agent, project: Project, issue: Issue, issue_id: int
-) -> str:
+) -> AbilityResult:
     """
     View the details of a specified Jira issue
     """
     parent_issue = project.get_issue(issue_id)
-    return parent_issue.display()
+    return AbilityResult(
+        ability_name="view_issue_details",
+        ability_args={"issue_id": issue_id},
+        success=True,
+        message=parent_issue.display(),
+    )
 
 
 @ability(
@@ -86,13 +98,20 @@ async def view_issue_details(
     ],
     output_type="object",
 )
-async def add_comment(agent, project: Project, issue: Issue, content: str) -> Comment:
+async def add_comment(
+    agent, project: Project, issue: Issue, content: str
+) -> AbilityResult:
     """
     Add a comment to a specified Jira issue
     """
     comment = Comment(content=content, created_by=agent)
     issue.add_activity(comment)
-    return comment
+    return AbilityResult(
+        ability_name="add_comment",
+        ability_args={"content": content},
+        success=True,
+        activities=[comment],
+    )
 
 
 @ability(
@@ -122,7 +141,7 @@ async def change_issue_status(
     issue: Issue,
     old_status: str,
     new_status: str,
-) -> StatusChangeActivity:
+) -> AbilityResult:
     """
     Change the status of a specified Jira issue
     """
@@ -147,7 +166,12 @@ async def change_issue_status(
         old_status=old_status, new_status=issue.status, created_by=agent
     )
     issue.add_activity(activity)
-    return activity
+    return AbilityResult(
+        ability_name="change_issue_status",
+        ability_args={"old_status": old_status, "new_status": new_status},
+        success=True,
+        activities=[activity],
+    )
 
 
 @ability(
@@ -165,7 +189,7 @@ async def change_issue_status(
 )
 async def close_issue(
     agent, project: Project, issue: Issue, issue_id: int
-) -> StatusChangeActivity:
+) -> AbilityResult:
     """
     Close a specified Jira issue
     """
@@ -181,7 +205,12 @@ async def close_issue(
         old_status=old_status, new_status=closing_issue.status, created_by=agent
     )
     issue.add_activity(activity)
-    return activity
+    return AbilityResult(
+        ability_name="close_issue",
+        ability_args={"issue_id": issue_id},
+        success=True,
+        activities=[activity],
+    )
 
 
 @ability(
@@ -224,7 +253,7 @@ async def create_issue(
     assignee: str,
     type: str,
     parent_issue_id: Optional[int] = None,
-) -> IssueCreationActivity:
+) -> AbilityResult:
     """
     Create a new Jira issue with the specified summary, assignee, and type
     """
@@ -249,7 +278,17 @@ async def create_issue(
     project.add_issue(issue)
     activity = IssueCreationActivity(created_by=agent)
     issue.add_activity(activity)
-    return activity
+    return AbilityResult(
+        ability_name="create_issue",
+        ability_args={
+            "summary": summary,
+            "assignee": assignee,
+            "type": type,
+            "parent_issue_id": parent_issue_id,
+        },
+        success=True,
+        activities=[activity],
+    )
 
 
 @ability(
@@ -285,7 +324,7 @@ async def create_issue_link(
     source_issue_id: int,
     target_issue_id: int,
     link_type: str,
-) -> IssueLink:
+) -> AbilityResult:
     """
     Create a link between two specified Jira issues
     """
@@ -296,12 +335,20 @@ async def create_issue_link(
         source_issue=source_issue,
         target_issue=target_issue,
     )
-    source_issue.linked_issues.append(link)
+    source_issue.links.append(link)
+    # TODO: should we link target_issue?
     activity = IssueLinkCreationActivity(link=link, created_by=agent)
-    issue.add_activity(
-        activity
-    )  # TODO: should we add this activity to source and target issue?
-    return activity
+    issue.add_activity(activity)
+    return AbilityResult(
+        ability_name="create_issue",
+        ability_args={
+            "source_issue_id": source_issue_id,
+            "target_issue_id": target_issue_id,
+            "link_type": link_type,
+        },
+        success=True,
+        activities=[activity],
+    )
 
 
 @ability(
@@ -329,7 +376,7 @@ async def remove_issue_link(
     issue: Issue,
     source_issue_id: int,
     target_issue_id: int,
-) -> IssueDeletionActivity:
+) -> AbilityResult:
     """
     Remove a link between two specified Jira issues
     """
@@ -337,16 +384,24 @@ async def remove_issue_link(
     target_issue = project.get_issue(target_issue_id)
     link_to_remove = None
 
-    for link in source_issue.linked_issues:
+    for link in source_issue.links:
         if link.target_issue == target_issue:
             link_to_remove = link
             break
 
     if link_to_remove:
-        source_issue.linked_issues.remove(link_to_remove)
+        source_issue.links.remove(link_to_remove)
 
     activity = IssueLinkDeletionActivity(link=link, created_by=agent)
     issue.add_activity(
         activity
     )  # TODO: should we add this activity to source and target issue?
-    return activity
+    return AbilityResult(
+        ability_name="create_issue",
+        ability_args={
+            "source_issue_id": source_issue_id,
+            "target_issue_id": target_issue_id,
+        },
+        success=True,
+        activities=[activity],
+    )

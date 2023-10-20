@@ -21,7 +21,7 @@ class ProjectManagerAgentUser(AgentUser):
         )
         user_prompt = prompt_engine.load_prompt(
             template="user",
-            current_project=project.display(),
+            project=project.display(),
         )
         messages = [
             {
@@ -33,7 +33,7 @@ class ProjectManagerAgentUser(AgentUser):
         message = await get_openai_response(messages)
         response = json.loads(message["content"])
         logger.info(
-            f"[{project.key}] {self.name} > Next speaker is {response['next_person']}(Issue ID: {response['issue_id']})"
+            f"[{project.key}] {self.name} > Next worker: {response['next_person']} (Issue ID: {response['issue_id']})"
         )
         issue = project.get_issue(response["issue_id"])
         worker = project.get_user_with_name(response["next_person"])

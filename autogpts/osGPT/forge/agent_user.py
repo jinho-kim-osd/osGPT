@@ -9,6 +9,7 @@ from forge.sdk import (
 from .utils import get_openai_response
 from .workspace import CollaborationWorkspace
 
+from .abilities.schema import AbilityResult
 from .abilities.registry import ForgeAbilityRegister
 from .schema import (
     User,
@@ -69,6 +70,7 @@ class AgentUser(User, Agent):
         return None
 
     async def work_on_issue(self, project: Project, issue: Issue) -> List[Activity]:
+        logger.error(f"[{project.key}-{issue.id}] > Work on Issue")
         old_status = issue.status
         issue.status = Status.IN_PROGRESS
 
@@ -151,9 +153,12 @@ class AgentUser(User, Agent):
         is_activity_type = False
         stack = 0
 
-        while not is_activity_type and stack < max_chained_calls:
-            message = await get_openai_response(messages, functions=functions)
+        if force_function:
+            messages.append({"role": "user", "content": "Use functions only."})
 
+        while not is_activity_type and stack < max_chained_calls:
+            logger.info(f"[{project.key}-{issue.id}] > Stack: {stack}")
+            message = await get_openai_response(messages, functions=functions)
             if "function_call" in message:
                 fn_name = message["function_call"]["name"]
                 fn_args = json.loads(message["function_call"]["arguments"])
@@ -161,38 +166,49 @@ class AgentUser(User, Agent):
                     f"[{project.key}-{issue.id}] > Function request: {fn_name}({fn_args})"
                 )
                 try:
-                    fn_response = await self.abilities.run_ability(
+                    fn_response: AbilityResult = await self.abilities.run_ability(
                         project, issue, fn_name, **fn_args
                     )
-                    if isinstance(fn_response, Activity):
-                        activities.append(fn_response)
-                        is_activity_type = True
-                    elif isinstance(fn_response, List) and all(
-                        isinstance(item, Activity) for item in fn_response
-                    ):
-                        activities.extend(fn_response)
+                    if isinstance(fn_response, str):
+                        logger.error(
+                            f"[{project.key}-{issue.id}] > Function Response: {fn_response}"
+                        )
+                    logger.info(str(fn_response.summary()))
+
+                    for activity in fn_response.activities:
+                        activities.append(activity)
                         is_activity_type = True
 
                     if is_activity_type:
                         break
 
                 except Exception as e:
-                    fn_response = e
+                    logger.error(f"[{project.key}-{issue.id}] > Error: {str(e)}")
+                    fn_response = AbilityResult(
+                        ability_name=fn_name,
+                        ability_args=fn_args,
+                        message=str(e),
+                        success=False,
+                    )
 
                 messages.append(
                     {
                         "role": "function",
                         "name": fn_name,
-                        "content": str(fn_response),
+                        "content": fn_response.summary(),
                     }
                 )
+            elif message["content"] == "":
+                break
             else:
                 if force_function:
-                    logger.error(f"[{project.key}-{issue.id}] > Invalid Response.")
+                    logger.error(
+                        f"[{project.key}-{issue.id}] > Invalid Response: {str(message)}"
+                    )
                     messages.append({"role": "user", "content": "Use functions only."})
                 else:
                     raise NotImplementedError
-
+            print(project.display())
             messages.append({"role": "user", "content": project.display()})
 
         if stack >= max_chained_calls:

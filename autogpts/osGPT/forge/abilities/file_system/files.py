@@ -1,6 +1,7 @@
 from typing import List
 
 from ..registry import ability
+from ..schema import AbilityResult
 from ...schema import Project, Issue, Attachment, AttachmentUploadActivity
 from forge.sdk import ForgeLogger
 
@@ -48,7 +49,7 @@ logger = ForgeLogger(__name__)
 )
 async def write_file(
     agent, project: Project, issue: Issue, file_path: str, data: str
-) -> AttachmentUploadActivity:
+) -> AbilityResult:
     """
     Write data to a file
     """
@@ -59,30 +60,40 @@ async def write_file(
     activty = AttachmentUploadActivity(created_by=agent, attachment=attachment)
     issue.add_attachment(attachment)
     issue.add_activity(activty)
-    return activty
+    return AbilityResult(
+        ability_name="write_file",
+        ability_args={"file_path": file_path, "data": data},
+        success=True,
+        activities=[activty],
+        attachments=[attachment],
+    )
 
 
 @ability(
     name="read_file",
-    description="Read data from a workspace",
+    description="Read data from a specific file within the workspace, not applicable to directories",
     parameters=[
         {
             "name": "file_path",
-            "description": "Path to the file",
+            "description": "Path to the file. This function is applicable to files only, not directories. All file paths specified must be within the project directory.",
             "type": "string",
             "required": True,
         },
     ],
     output_type="bytes",
 )
-async def read_file(agent, project: Project, issue: Issue, file_path: str) -> bytes:
+async def read_file(
+    agent, project: Project, issue: Issue, file_path: str
+) -> AbilityResult:
     """
     Read data from a file
     """
-    try:
-        data = agent.workspace.read_relative_path(path=file_path)
-    except:
-        return f"Not found on path {file_path}"
+    data = agent.workspace.read_relative_path(path=file_path)
     if isinstance(data, bytes):
         data = data.decode("utf-8")
-    return data
+    return AbilityResult(
+        ability_name="read_file",
+        ability_args={"file_path": file_path},
+        success=True,
+        message=data,
+    )

@@ -23,7 +23,12 @@ class CollaborationWorkspace(Workspace):
         return self.service.write(task_id, path, data)
 
     def read_relative_path(self, path: str) -> bytes:
-        with open(self._resolve_relative_path(path), "rb") as f:
+        abs_path = self._resolve_relative_path(path)
+
+        if not abs_path.is_file():
+            raise FileNotFoundError(f"The file at path {abs_path} does not exist!")
+
+        with open(abs_path, "rb") as f:
             return f.read()
 
     def write_relative_path(self, path: str, data: bytes) -> Attachment:
@@ -60,7 +65,7 @@ class CollaborationWorkspace(Workspace):
             if str(path).split(".")[-1] in ["txt", "pdf", "docx", "jpg", "png"]:
                 target_path = abs_path.parent
                 target_path.mkdir(parents=True, exist_ok=True)
-                abs_path.touch()
+                # abs_path.touch()
             else:
                 target_path = abs_path
                 target_path.mkdir(parents=True, exist_ok=True)

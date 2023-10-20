@@ -7,6 +7,7 @@ from itertools import islice
 from serpapi import GoogleSearch
 
 from ..registry import ability
+from ..schema import AbilityResult
 from ...schema import Project, Issue
 
 SERPAPI_MAX_ATTEMPTS = 3
@@ -23,9 +24,11 @@ SERPAPI_MAX_ATTEMPTS = 3
             "required": True,
         }
     ],
-    output_type="list[str]",
+    output_type="object",
 )
-async def web_search(agent, project: Project, issue: Issue, query: str) -> str:
+async def web_search(
+    agent, project: Project, issue: Issue, query: str
+) -> AbilityResult:
     """Return the results of a Google search
     Args:
         query (str): The search query.
@@ -57,7 +60,13 @@ async def web_search(agent, project: Project, issue: Issue, query: str) -> str:
         attempts += 1
 
     results = json.dumps(search_results, ensure_ascii=False, indent=4)
-    return safe_google_results(results)
+    safe_format_results = safe_google_results(results)
+    return AbilityResult(
+        ability_name="web_search",
+        ability_args={"query": query},
+        success=True,
+        message=str(safe_format_results),
+    )
 
 
 def safe_google_results(results: str | list) -> str:
