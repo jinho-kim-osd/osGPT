@@ -102,13 +102,6 @@ def setup_workspace(db: ForgeDatabase) -> CollaborationWorkspace:
         db=db,
     )
 
-    # Add members to a Workspace with workspace role
-    for user, workspace_role in zip(
-        [user_proxy_agent, project_manager, engineer, researcher],
-        ["Boss", "Project Manager", "Engineer", "Researcher"],
-    ):
-        workspace.add_member(user, workspace_role)
-
     # Creating a Workflow with Transitions
     transitions = [
         Transition(
@@ -141,5 +134,13 @@ def setup_workspace(db: ForgeDatabase) -> CollaborationWorkspace:
         project_leader=project_manager,
         workflow=workflow,
     )
+    # Add members with workspace, project role
+    for user, role in zip(
+        [user_proxy_agent, project_manager, engineer, researcher],
+        ["Boss", "Project Manager", "Engineer", "Researcher"],
+    ):
+        workspace.add_member(user, role)
+        project.add_member(user, role)
     workspace.add_project(project)
+    print(project.display())
     return workspace

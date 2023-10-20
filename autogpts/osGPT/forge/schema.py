@@ -398,12 +398,31 @@ class Workflow(BaseModel):
         return False
 
 
+class ProjectMember(BaseModel):
+    user: User
+    project_role: Optional[str] = None
+    additional_info: Dict[str, Any] = Field(default_factory=dict)
+
+    class Config:
+        extra = "allow"
+
+    def __str__(self):
+        role = (
+            self.project_role if self.project_role else self.user.role
+        )  # project_role이 없으면 user의 role을 사용합니다.
+        return f"{self.user.name} (Role: {role})"
+
+    def add_info(self, key: str, value: Any):
+        self.additional_info[key] = value
+
+
 class Project(BaseModel):
     name: str
     key: str
     project_leader: User
     default_assignee: Optional[User]
     issues: List[Issue] = Field(default_factory=list)
+    members: List[ProjectMember] = Field(default_factory=list)
     workflow: Workflow
 
     class Config:
@@ -414,8 +433,42 @@ class Project(BaseModel):
             f"Project {self.name} (Key: {self.key}, Leader: {self.project_leader.name})"
         )
 
+    def reset(self):
+        self.issues = []
+        self.members = []
+
+    def get_issue(self, issue_id: int) -> Issue:
+        issue = next((issue for issue in self.issues if issue.id == issue_id), None)
+        if not issue:
+            raise ValueError(f"No issue found with ID {issue_id}")
+        return issue
+
     def add_issue(self, issue: Issue):
         self.issues.append(issue)
+
+    def get_issue(self, issue_id: str) -> Issue:
+        for issue in self.issues:
+            if issue.id == issue_id:
+                return issue
+        raise ValueError(f"No issue found with ID {issue_id}")
+
+    def get_member(self, user_id: str) -> ProjectMember:
+        for member in self.members:
+            if member.user.id == user_id:
+                return member
+        raise ValueError(f"No member found with user ID {user_id}")
+
+    def add_member(self, user: User, project_role: str, **kwargs):
+        member = ProjectMember(
+            user=user, project_role=project_role, additional_info=kwargs
+        )
+        self.members.append(member)
+
+    def get_user_with_name(self, name: str) -> User:
+        for member in self.members:
+            if member.user.name == name:
+                return member.user
+        raise ValueError
 
     def apply_transition(
         self, issue: Issue, transition_name: str
@@ -432,6 +485,9 @@ class Project(BaseModel):
     def display(self) -> str:
         tree_display = TreeStructureDisplay()
         project_node = tree_display.add_node(f"📁 {str(self)}")
+
+        for member in self.members:
+            tree_display.add_node(str(member), parent=project_node)
 
         # Sorting issues by their ID in ascending order
         sorted_issues = sorted(self.issues, key=lambda x: x.id)
@@ -522,10 +578,7 @@ class Workspace(BaseModel):
         self.members = []
 
     def get_issue(self, project_key: str, issue_id: int) -> Issue:
-        """
-        Get a specific issue in a project using the project key and issue ID.
-        """
-        project = self.get_project_with_key(project_key)
+        project = self.get_project(project_key)
         if not project:
             raise ValueError(f"No project found with key {project_key}")
 
@@ -534,19 +587,12 @@ class Workspace(BaseModel):
             raise ValueError(
                 f"No issue found with ID {issue_id} in project {project_key}"
             )
-
         return issue
 
     def add_project(self, project: Project):
         self.projects.append(project)
 
-    def get_project(self, project_name: str) -> Project:
-        for project in self.projects:
-            if project.name == project_name:
-                return project
-        raise ValueError
-
-    def get_project_with_key(self, project_key: str) -> Project:
+    def get_project(self, project_key: str) -> Project:
         for project in self.projects:
             if project.key == project_key:
                 return project
@@ -564,20 +610,10 @@ class Workspace(BaseModel):
                 return member.user
         raise ValueError
 
-    def get_users_with_role(self, role: Role) -> List[User]:
-        return [member.user for member in self.members if member.user.role == role]
-
-    def get_users_with_workspace_role(self, workspace_role: str) -> List[User]:
-        return [
-            member.user
-            for member in self.members
-            if member.workspace_role == workspace_role
-        ]
-
-    def get_workspace_role_with_user_name(self, name: str) -> str:
+    def get_member(self, id: str) -> WorkspaceMember:
         for member in self.members:
-            if name == member.user.name:
-                return member.workspace_role
+            if member.user.id == id:
+                return member
         raise ValueError
 
     def display(self) -> str:

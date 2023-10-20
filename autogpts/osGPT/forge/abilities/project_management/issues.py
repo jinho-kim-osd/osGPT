@@ -40,7 +40,7 @@ async def change_assignee(
     Change the assignee of a specified Jira issue
     """
     old_assignee = issue.assignee
-    new_assignee = agent.workspace.get_user_with_name(new_assignee)
+    new_assignee = project.get_user_with_name(new_assignee)
     issue.assignee = new_assignee
 
     activity = AssignmentChangeActivity(
@@ -69,7 +69,7 @@ async def view_issue_details(
     """
     View the details of a specified Jira issue
     """
-    parent_issue = agent.workspace.get_issue(project.key, issue_id)
+    parent_issue = project.get_issue(issue_id)
     return parent_issue.display()
 
 
@@ -161,8 +161,7 @@ async def close_issue(
     """
     Close a specified Jira issue
     """
-    # 이슈를 가져옵니다.
-    closing_issue = agent.workspace.get_issue(project.key, issue_id)
+    closing_issue = project.get_issue(issue_id)
 
     if closing_issue.status != Status.RESOLVED:
         raise ValueError(f"Issue #{issue_id} is not resolved and cannot be closed.")
@@ -170,7 +169,6 @@ async def close_issue(
     old_status = closing_issue.status
     closing_issue.status = Status.CLOSED
 
-    # 상태 변경을 로깅합니다.
     activity = StatusChangeActivity(
         old_status=old_status, new_status=closing_issue.status, created_by=agent
     )
@@ -223,11 +221,11 @@ async def create_issue(
     Create a new Jira issue with the specified summary, assignee, and type
     """
     # Getting the user from the workspace using the assignee username
-    assignee_user = agent.workspace.get_user_with_name(assignee)
+    assignee_user = project.get_user_with_name(assignee)
 
     parent_issue = None
     if parent_issue_id is not None:
-        parent_issue = agent.workspace.get_issue(project.key, parent_issue_id)
+        parent_issue = project.get_issue(project.key, parent_issue_id)
 
     # Creating a new issue
     issue = Issue(
@@ -283,8 +281,8 @@ async def create_issue_link(
     """
     Create a link between two specified Jira issues
     """
-    source_issue = agent.workspace.get_issue(project.key, source_issue_id)
-    target_issue = agent.workspace.get_issue(project.key, target_issue_id)
+    source_issue = project.get_issue(source_issue_id)
+    target_issue = project.get_issue(target_issue_id)
     link = IssueLink(
         type=IssueLinkType(link_type),
         source_issue=source_issue,
@@ -327,8 +325,8 @@ async def remove_issue_link(
     """
     Remove a link between two specified Jira issues
     """
-    source_issue = agent.workspace.get_issue(project.key, source_issue_id)
-    target_issue = agent.workspace.get_issue(project.key, target_issue_id)
+    source_issue = project.get_issue(source_issue_id)
+    target_issue = project.get_issue(target_issue_id)
     link_to_remove = None
 
     for link in source_issue.linked_issues:

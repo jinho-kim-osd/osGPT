@@ -108,9 +108,9 @@ class AgentUser(User, Agent):
         activities = []
 
         prompt_engine = PromptEngine(prompt_name)
-        workspace_role = self.workspace.get_workspace_role_with_user_name(self.name)
+        project_member = project.get_member(self.id)
         system_prompt = prompt_engine.load_prompt(
-            template="system", workspace_role=workspace_role
+            template="system", project_role=project_member.project_role
         )
 
         user_prompt = prompt_engine.load_prompt(
@@ -191,6 +191,8 @@ class AgentUser(User, Agent):
                     messages.append({"role": "user", "content": "Use functions only."})
                 else:
                     raise NotImplementedError
+
+            messages.append({"role": "user", "content": project.display()})
 
         if stack >= max_chained_calls:
             logger.info(

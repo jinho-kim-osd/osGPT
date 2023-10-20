@@ -86,29 +86,28 @@ class JiraAgent(Agent):
     def create_issue_from_user_request(
         self, task_id: str, project: Project, input: str
     ):
-        user_proxy_agent = self.workspace.get_user_with_name(
+        user_proxy_agent = project.get_user_with_name(
             os.environ.get("DEFAULT_USER_NAME")
         )
 
-        epic_issue = Epic(
-            id=len(project.issues) + 1,
-            summary="Arana Hacks Challenges",
-            description="Participants will tackle a series of tasks, emphasizing real-world application of data handling, programming, web scraping, and versatile problem-solving skills. Each task is tailored to elevate in complexity, pushing the boundaries of innovation and technical expertise.",
-            assignee=project.project_leader,
-            reporter=user_proxy_agent,
-            status=Status.IN_PROGRESS,
-        )
-        project.add_issue(epic_issue)
-        activity = IssueCreationActivity(created_by=user_proxy_agent)
-        epic_issue.add_activity(activity)
+        # epic_issue = Epic(
+        #     id=len(project.issues) + 1,
+        #     summary="Arana Hacks Challenges",
+        #     description="Participants will tackle a series of tasks, emphasizing real-world application of data handling, programming, web scraping, and versatile problem-solving skills. Each task is tailored to elevate in complexity, pushing the boundaries of innovation and technical expertise.",
+        #     assignee=project.project_leader,
+        #     reporter=user_proxy_agent,
+        # )
+        # project.add_issue(epic_issue)
+        # activity = IssueCreationActivity(created_by=user_proxy_agent)
+        # epic_issue.add_activity(activity)
 
         issue = Issue(
-            id=len(project.issues) + 2,
+            id=len(project.issues) + 1,
             summary=input,
             type=IssueType.TASK,
             assignee=project.project_leader,
             reporter=user_proxy_agent,
-            parent_issue=epic_issue,
+            # parent_issue=epic_issue,
         )
         project.add_issue(issue)
         activity = IssueCreationActivity(created_by=user_proxy_agent)
@@ -137,9 +136,9 @@ class JiraAgent(Agent):
             step = await self.db.update_step(task_id, step.step_id, "running")
 
         if step_request.additional_input:
-            project_name = step_request.additional_input.get("project_name", None)
-            if project_name:
-                project = self.workspace.get_project(project_name)
+            project_key = step_request.additional_input.get("project_key", None)
+            if project_key:
+                project = self.workspace.get_project(project_key)
             raise ValueError
         else:
             project = self.get_current_project()
@@ -149,37 +148,25 @@ class JiraAgent(Agent):
 
         print(project.display())
 
-        unresolved_issues = [
-            issue
-            for issue in project.issues
-            if issue.status not in [Status.CLOSED, Status.RESOLVED]
-        ]
-        step_activities = []
-
-        if len(unresolved_issues) > 0:
-            project_leader: ProjectManagerAgentUser = project.project_leader
-            worker: AgentUser = await project_leader.select_worker(project)
-            issue = await worker.select_issue(project)
-            if issue:
-                if issue.status in [Status.OPEN, Status.REOPENED]:
-                    activities = await worker.work_on_issue(project, issue)
-                elif issue.status == Status.IN_PROGRESS:
-                    activities = await worker.resolve_issue(project, issue)
-                elif issue.status == Status.RESOLVED:
-                    if worker != project_leader:
-                        raise ValueError
-                    activities = await worker.review_issue(project, issue)
-                elif issue.status == Status.CLOSED:
-                    raise NotImplementedError
-                    activities = worker.decide_reopen(project, issue)
-                step_activities.extend(activities)
-            else:
-                # no issues to work on
-                ...
-
         unclosed_issues = [
             issue for issue in project.issues if issue.status != Status.CLOSED
         ]
+        step_activities = []
+
+        if len(unclosed_issues) > 0:
+            project_leader: ProjectManagerAgentUser = project.project_leader
+            worker, issue = await project_leader.select_worker(project)
+
+            if issue.status in [Status.OPEN, Status.REOPENED]:
+                activities = await worker.work_on_issue(project, issue)
+            elif issue.status == Status.IN_PROGRESS:
+                activities = await worker.resolve_issue(project, issue)
+            elif issue.status == Status.RESOLVED:
+                if worker.id != project_leader.id:
+                    raise ValueError
+                activities = await worker.review_issue(project, issue)
+            step_activities.extend(activities)
+
         for activity in step_activities:
             if isinstance(activity, Comment):
                 if activity.attachments:
@@ -191,6 +178,10 @@ class JiraAgent(Agent):
                             agent_created=True,
                             step_id=step.step_id,
                         )
+
+        unclosed_issues = [
+            issue for issue in project.issues if issue.status != Status.CLOSED
+        ]
 
         step = await self.db.update_step(
             task_id,

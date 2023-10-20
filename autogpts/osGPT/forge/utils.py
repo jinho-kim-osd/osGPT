@@ -140,15 +140,3 @@ def extract_top_level_json(text: str) -> Optional[Dict]:
         if is_valid_json(candidate):
             return json.loads(candidate)
     return None
-
-
-def top_level_json_field(text: str, field: str) -> Any:
-    jsons = extract_top_level_json(text)
-
-    if len(jsons) == 0:
-        return ""
-    for j in jsons:
-        json_data = json.loads(j)
-        if field in json_data:
-            return json_data[field]
-    return ""

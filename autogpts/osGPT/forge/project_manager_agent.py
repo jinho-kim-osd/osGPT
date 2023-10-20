@@ -1,9 +1,9 @@
-from typing import Optional, Dict, Any
-
+from typing import Optional, Dict, Any, Tuple, List
+import json
 from forge.sdk import ForgeLogger, PromptEngine
 
 from .agent_user import AgentUser
-from .schema import Project, Issue, User, Status, IssueLinkType
+from .schema import Project, Issue, User, Activity
 from .utils import get_openai_response
 
 logger = ForgeLogger(__name__)
@@ -13,11 +13,11 @@ class ProjectManagerAgentUser(AgentUser):
     async def select_worker(
         self,
         project: Project,
-    ) -> Optional[User]:
+    ) -> Tuple[User, Optional[Issue]]:
         prompt_engine = PromptEngine("select-worker")
-        workspace_role = self.workspace.get_workspace_role_with_user_name(self.name)
+        project_member = project.get_member(self.id)
         system_prompt = prompt_engine.load_prompt(
-            template="system", workspace_role=workspace_role
+            template="system", project_role=project_member.project_role
         )
         user_prompt = prompt_engine.load_prompt(
             template="user",
@@ -31,22 +31,27 @@ class ProjectManagerAgentUser(AgentUser):
             {"role": "user", "content": user_prompt},
         ]
         message = await get_openai_response(messages)
+        response = json.loads(message["content"])
         logger.info(
-            f"[{project.key}] {self.name} > Next speaker is {message['content']}"
+            f"[{project.key}] {self.name} > Next speaker is {response['next_person']}(Issue ID: {response['issue_id']})"
         )
-        if message["content"] == "<TERMINATE>":
-            return None
-        speaker = self.workspace.get_user_with_name(message["content"])
-        return speaker
+        issue = project.get_issue(response["issue_id"])
+        worker = project.get_user_with_name(response["next_person"])
+        return worker, issue
 
-    async def select_issue(self, project: Project) -> Optional[Issue]:
-        for issue in project.issues:
-            if issue.assignee and issue.assignee.id == self.id:
-                # Status check
-                if issue.status not in [Status.CLOSED]:
-                    return issue
-        # If no appropriate issue is found
-        return None
+    async def resolve_issue(self, project: Project, issue: Issue) -> List[Activity]:
+        return await self.execute_task_with_prompt(
+            project,
+            issue,
+            "resolve-issue-action",
+            [
+                "change_assignee",
+                "change_issue_status",
+                "read_file",
+                "add_comment",
+                "finish_work",
+            ],
+        )
 
     async def review_issue(
         self,
@@ -58,6 +63,7 @@ class ProjectManagerAgentUser(AgentUser):
             issue,
             "review-issue",
             [
+                "change_assignee",
                 "change_issue_status",
                 "close_issue",
                 "read_file",
