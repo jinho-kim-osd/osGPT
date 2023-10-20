@@ -317,7 +317,7 @@ class Issue(BaseModel):
         if self.activities:
             activities_node = tree_display.add_node("📆 Activities:", parent=issue_node)
             for activity in sorted(self.activities, key=lambda x: x.created_at):
-                activity_info = f"{activity.created_by.name} {activity.type} at {humanize_time(activity.created_at)}"
+                activity_info = f"{activity}"
                 activity_node = tree_display.add_node(
                     activity_info, parent=activities_node
                 )

@@ -55,6 +55,7 @@ def setup_workspace(db: ForgeDatabase) -> CollaborationWorkspace:
             "read_file",
             "list_files",
             "change_issue_status",
+            "close_issue",
             "add_comment",
             "create_issue",
             "change_assignee",
@@ -82,10 +83,29 @@ def setup_workspace(db: ForgeDatabase) -> CollaborationWorkspace:
         db=db,
     )
 
+    researcher = AgentUser(
+        id="jiyeon_lee",
+        name="Jiyeon Lee",
+        role=Role.MEMBER,
+        workspace=workspace,
+        ability_names=[
+            "read_file",
+            "list_files",
+            "change_issue_status",
+            "add_comment",
+            "create_issue_link",
+            "remove_issue_link",
+            "web_search",
+            "read_webpage",
+            "finish_work",
+        ],
+        db=db,
+    )
+
     # Add members to a Workspace with workspace role
     for user, workspace_role in zip(
-        [user_proxy_agent, project_manager, engineer],
-        ["Boss", "Project Manager", "Engineer"],
+        [user_proxy_agent, project_manager, engineer, researcher],
+        ["Boss", "Project Manager", "Engineer", "Researcher"],
     ):
         workspace.add_member(user, workspace_role)
 

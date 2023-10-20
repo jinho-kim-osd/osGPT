@@ -3,11 +3,7 @@ from typing import Optional, Dict, Any
 from forge.sdk import ForgeLogger, PromptEngine
 
 from .agent_user import AgentUser
-from .schema import (
-    Project,
-    Issue,
-    User,
-)
+from .schema import Project, Issue, User, Status, IssueLinkType
 from .utils import get_openai_response
 
 logger = ForgeLogger(__name__)
@@ -43,6 +39,15 @@ class ProjectManagerAgentUser(AgentUser):
         speaker = self.workspace.get_user_with_name(message["content"])
         return speaker
 
+    async def select_issue(self, project: Project) -> Optional[Issue]:
+        for issue in project.issues:
+            if issue.assignee and issue.assignee.id == self.id:
+                # Status check
+                if issue.status not in [Status.CLOSED]:
+                    return issue
+        # If no appropriate issue is found
+        return None
+
     async def review_issue(
         self,
         project: Project,
@@ -53,10 +58,10 @@ class ProjectManagerAgentUser(AgentUser):
             issue,
             "review-issue",
             [
-                "create_issue",
-                "change_assinee",
                 "change_issue_status",
+                "close_issue",
                 "read_file",
+                "list_files",
                 "add_comment",
             ],
         )
@@ -66,16 +71,4 @@ class ProjectManagerAgentUser(AgentUser):
         project: Project,
         issue: Issue,
     ) -> Dict[str, Any]:
-        return await self.execute_task_with_prompt(
-            project,
-            issue,
-            "decide-reopen",
-            [
-                "create_issue",
-                "change_assinee",
-                "change_issue_status",
-                "read_file",
-                "list_files",
-                "add_comment",
-            ],
-        )
+        raise NotImplementedError

@@ -103,7 +103,7 @@ async def add_comment(agent, project: Project, issue: Issue, content: str) -> Co
             "name": "new_status",
             "description": f"The new status to be assigned to the issue",
             "type": "string",
-            "enum": [e.value for e in Status],
+            "enum": [e.value for e in Status if e != Status.CLOSED],
             "required": True,
         },
     ],
@@ -136,7 +136,43 @@ async def change_issue_status(
 
     # Logging the status change as an activity
     activity = StatusChangeActivity(
-        old_status=old_status, new_status=new_status, created_by=agent
+        old_status=old_status, new_status=issue.status, created_by=agent
+    )
+    issue.add_activity(activity)
+    return activity
+
+
+@ability(
+    name="close_issue",
+    description="Close a Jira issue that is currently in a Resolved state",
+    parameters=[
+        {
+            "name": "issue_id",
+            "description": "ID of the issue to be closed",
+            "type": "number",
+            "required": True,
+        },
+    ],
+    output_type="object",
+)
+async def close_issue(
+    agent, project: Project, issue: Issue, issue_id: int
+) -> StatusChangeActivity:
+    """
+    Close a specified Jira issue
+    """
+    # 이슈를 가져옵니다.
+    closing_issue = agent.workspace.get_issue(project.key, issue_id)
+
+    if closing_issue.status != Status.RESOLVED:
+        raise ValueError(f"Issue #{issue_id} is not resolved and cannot be closed.")
+
+    old_status = closing_issue.status
+    closing_issue.status = Status.CLOSED
+
+    # 상태 변경을 로깅합니다.
+    activity = StatusChangeActivity(
+        old_status=old_status, new_status=closing_issue.status, created_by=agent
     )
     issue.add_activity(activity)
     return activity

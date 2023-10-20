@@ -103,7 +103,7 @@ class AgentUser(User, Agent):
         prompt_name: str,
         ability_names: Optional[List[str]] = None,
         force_function: bool = True,
-        max_chained_calls: int = 2,
+        max_chained_calls: int = 1,
     ) -> List[Activity]:
         activities = []
 
@@ -113,12 +113,10 @@ class AgentUser(User, Agent):
             template="system", workspace_role=workspace_role
         )
 
-        current_workspace = self.workspace.display()
-        current_issue = issue.display()
         user_prompt = prompt_engine.load_prompt(
             template="user",
-            current_workspace=current_workspace,
-            current_issue=current_issue,
+            project=project.display(),
+            issue_id=issue.id,
         )
         messages = [
             {
@@ -145,17 +143,15 @@ class AgentUser(User, Agent):
         messages: List[Dict[str, Any]] = [],
         functions: Optional[Dict[str, Any]] = None,
         force_function: bool = False,
-        max_chained_calls: int = 2,
+        max_chained_calls: int = 3,
     ) -> List[Activity]:
         activities = []
-
+        is_activity_type = False
         stack = 0
-        prev_message_content = None
-        while stack < max_chained_calls:
-            # logger.info(
-            #     f"[{project.key}-{issue.id}] > Process chained calls (stack: {stack})"
-            # )
+
+        while not is_activity_type and stack < max_chained_calls:
             message = await get_openai_response(messages, functions=functions)
+            print(messages)
 
             if "function_call" in message:
                 fn_name = message["function_call"]["name"]
@@ -168,53 +164,36 @@ class AgentUser(User, Agent):
                         project, issue, fn_name, **fn_args
                     )
                     if isinstance(fn_response, Activity):
-                        fn_response_str = str(fn_response)
                         activities.append(fn_response)
-                    elif isinstance(fn_response, List):
-                        fn_response_str = "["
-                        for item in fn_response:
-                            if isinstance(item, Activity):
-                                fn_response_str += str(item) + ",\n"
-                                activities.append(item)
-                            else:
-                                fn_response_str += str(item)
-                        fn_response_str += "]"
-                    else:
-                        fn_response_str = str(fn_response)
+                        is_activity_type = True
+                    elif isinstance(fn_response, List) and all(
+                        isinstance(item, Activity) for item in fn_response
+                    ):
+                        activities.extend(fn_response)
+                        is_activity_type = True
+
+                    if is_activity_type:
+                        break
+
                 except Exception as e:
-                    fn_response_str = str(e)
+                    fn_response = e
+
                 messages.append(
                     {
                         "role": "function",
                         "name": fn_name,
-                        "content": fn_response_str,
+                        "content": str(fn_response),
                     }
                 )
-
-                logger.info(
-                    f"[{project.key}-{issue.id}] > Function response: {fn_response_str}"
-                )
-            elif message["content"] in ["", prev_message_content]:
-                break
             else:
                 if force_function:
                     logger.info(f"[{project.key}-{issue.id}] > Invalid Response.")
                     messages.append({"role": "user", "content": "Use functions only."})
                 else:
-                    comment = Comment(content=message["content"], created_by=self)
-                    logger.info(f"[{project.key}-{issue.id}] > {comment}")
-                    issue.add_activity(comment)
-                    messages.append({"role": "user", "content": project.display()})
-                    activities.append(comment)
-                    prev_message_content = message["content"]
-
-            # Add workspace landscape for observation
-            messages.append({"role": "user", "content": project.display()})
-            stack += 1
+                    raise NotImplementedError
 
         if stack >= max_chained_calls:
             logger.info(
                 f"[{project.key}-{issue.id}] > Reached max chained function calls: {max_chained_calls}"
             )
-
         return activities

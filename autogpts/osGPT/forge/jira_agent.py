@@ -6,6 +6,8 @@ from forge.sdk import (
     StepRequestBody,
     ForgeLogger,
     Status as StepStatus,
+    Task,
+    TaskRequestBody,
 )
 from forge.sdk.abilities.registry import AbilityRegister
 from .schema import (
@@ -49,6 +51,10 @@ class JiraAgent(Agent):
         for project in self.workspace.projects:
             project.issues = []
 
+    async def create_task(self, task_request: TaskRequestBody) -> Task:
+        self.reset()
+        return await super().create_task(task_request)
+
     async def create_issue(
         self,
         reporter: User,
@@ -83,7 +89,6 @@ class JiraAgent(Agent):
         user_proxy_agent = self.workspace.get_user_with_name(
             os.environ.get("DEFAULT_USER_NAME")
         )
-        # initial_input = f"Plan and assign issues for executing '{input}'"
 
         epic_issue = Epic(
             id=len(project.issues) + 1,
@@ -93,17 +98,19 @@ class JiraAgent(Agent):
             reporter=user_proxy_agent,
             status=Status.IN_PROGRESS,
         )
+        project.add_issue(epic_issue)
         activity = IssueCreationActivity(created_by=user_proxy_agent)
         epic_issue.add_activity(activity)
 
         issue = Issue(
-            id=len(project.issues) + 1,
+            id=len(project.issues) + 2,
             summary=input,
             type=IssueType.TASK,
             assignee=project.project_leader,
             reporter=user_proxy_agent,
             parent_issue=epic_issue,
         )
+        project.add_issue(issue)
         activity = IssueCreationActivity(created_by=user_proxy_agent)
         issue.add_activity(activity)
 
@@ -117,11 +124,10 @@ class JiraAgent(Agent):
 
         issue.add_activity(
             Comment(
-                content=f"Workspace Root Path: ./{task_id}",
+                content=f"Project Root Path: ./{task_id}",
                 created_by=user_proxy_agent,
             )
         )
-        project.add_issue(issue)
 
     async def execute_step(self, task_id: str, step_request: StepRequestBody) -> Step:
         """Execute a task step and update its status and output."""
@@ -143,11 +149,14 @@ class JiraAgent(Agent):
 
         print(project.display())
 
-        unclosed_issues = [
-            issue for issue in project.issues if issue.status != Status.CLOSED
+        unresolved_issues = [
+            issue
+            for issue in project.issues
+            if issue.status not in [Status.CLOSED, Status.RESOLVED]
         ]
         step_activities = []
-        if len(unclosed_issues) > 0:
+
+        if len(unresolved_issues) > 0:
             project_leader: ProjectManagerAgentUser = project.project_leader
             worker: AgentUser = await project_leader.select_worker(project)
             issue = await worker.select_issue(project)
@@ -165,13 +174,24 @@ class JiraAgent(Agent):
                     activities = worker.decide_reopen(project, issue)
                 step_activities.extend(activities)
             else:
-                for issue in unclosed_issues:
-                    activities = await project_leader.review_issue(project, issue)
-                    step_activities.extend(activities)
+                # no issues to work on
+                ...
 
         unclosed_issues = [
             issue for issue in project.issues if issue.status != Status.CLOSED
         ]
+        for activity in step_activities:
+            if isinstance(activity, Comment):
+                if activity.attachments:
+                    for attachment in activity.attachments:
+                        await self.db.create_artifact(
+                            task_id,
+                            attachment.filename,
+                            attachment.filename,  # TODO: correct as file path
+                            agent_created=True,
+                            step_id=step.step_id,
+                        )
+
         step = await self.db.update_step(
             task_id,
             step.step_id,

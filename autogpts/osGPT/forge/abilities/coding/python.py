@@ -89,7 +89,7 @@ def sanitize_input(query: str) -> str:
         "Input should be a valid python command. "
         "When using this tool, sometimes output is abbreviated - "
         "make sure it does not look abbreviated before using it in your answer."
-        "Note: CSV files can be either comma-separated or tab-separated. "
+        # "Note: CSV files can be either comma-separated or tab-separated. "
         # "All csv files are tab-separated."  # TODO: should be in prompt?
     ),
     parameters=[
@@ -100,8 +100,8 @@ def sanitize_input(query: str) -> str:
             "required": True,
         },
         {
-            "name": "path",
-            "description": "The relative path in the workspace where the code will be executed",
+            "name": "project_root_path",
+            "description": "The project root path",
             "type": "string",
             "required": True,
         },
@@ -113,7 +113,7 @@ async def run_python_code(
     project: Project,
     issue: Issue,
     query: str,
-    path: str,
+    project_root_path: str,
 ) -> Dict[str, Any]:
     """
     Run a python code
@@ -124,9 +124,9 @@ async def run_python_code(
         _globals=globals(), _locals=None, _working_directory=str(working_dir)
     )
 
-    before_attachments = set(agent.workspace.list_attachments(working_dir))
+    before_attachments = set(agent.workspace.list_attachments(project_root_path))
     output = python_repl.run(query)
-    after_attachments = set(agent.workspace.list_attachments(working_dir))
+    after_attachments = set(agent.workspace.list_attachments(project_root_path))
     new_attachments = after_attachments - before_attachments
 
     for attachment in new_attachments:
