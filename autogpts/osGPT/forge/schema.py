@@ -306,9 +306,7 @@ class Issue(BaseModel):
                 "🔗 Linked Issues:", parent=issue_node
             )
             for link in self.links:
-                link_info = (
-                    f"Type: {link.type}, Linked Issue ID: {link.target_issue.id}"
-                )
+                link_info = f"Type: {link.type}, {link.target_issue}"
                 tree_display.add_node(link_info, parent=linked_issues_node)
 
         if self.activities:
