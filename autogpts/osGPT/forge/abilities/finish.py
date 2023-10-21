@@ -1,7 +1,6 @@
 from forge.sdk.forge_log import ForgeLogger
 from .registry import ability
 from .schema import AbilityResult
-from .project_management.issues import add_comment
 from ..schema import Project, Issue, Comment
 
 logger = ForgeLogger(__name__)

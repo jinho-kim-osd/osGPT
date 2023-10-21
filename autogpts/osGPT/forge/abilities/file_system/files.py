@@ -8,32 +8,29 @@ from forge.sdk import ForgeLogger
 logger = ForgeLogger(__name__)
 
 
-# @ability(
-#     name="list_files",
-#     description="List files in a workspace",
-#     parameters=[
-#         {
-#             "name": "path",
-#             "description": "Path to the workspace",
-#             "type": "string",
-#             "required": True,
-#         }
-#     ],
-#     output_type="list[str]",
-# )
-# async def list_files(agent, project: Project, issue: Issue, path: str) -> List[str]:
-#     """
-#     List files in a workspace directory
-#     """
-#     return agent.workspace.list_files_by_key(key=project.key, path=path)
+@ability(
+    name="list_files",
+    description="List files in a workspace",
+    parameters=[
+        {
+            "name": "path",
+            "description": "Path to the workspace",
+            "type": "string",
+            "required": True,
+        }
+    ],
+    output_type="list[str]",
+)
+async def list_files(agent, project: Project, issue: Issue, path: str) -> List[str]:
+    """
+    List files in a workspace directory
+    """
+    return agent.workspace.list_files_by_key(key=project.key, path=path)
 
 
 @ability(
     name="write_file",
-    description=(
-        "Write data to a file within the workspace. "
-        "Note: All file paths used within the this function should be within the specified project_root_path."
-    ),
+    description="Write data to a file within the workspace.",
     parameters=[
         {
             "name": "file_path",

@@ -48,7 +48,7 @@ class ProjectManagerAgentUser(AgentUser):
         return await self.execute_task_with_prompt(
             project,
             issue,
-            "resolve-issue-action",
+            "resolve-issue-project-manager",
             [
                 "change_assignee",
                 "change_issue_status",

@@ -107,8 +107,7 @@ class JiraAgent(Agent):
                 attachment = Attachment(
                     filename=file.name,
                     filesize=file.stat().st_size,
-                    url=str(file.absolute())
-                    # url=str(file.relative_to(self.workspace.service.base_path / path)),
+                    url=str(file.absolute()),
                 )
                 activty = AttachmentUploadActivity(
                     created_by=user_proxy, attachment=attachment
@@ -162,7 +161,7 @@ class JiraAgent(Agent):
                 await self.db.create_artifact(
                     task_id,
                     activity.attachment.filename,
-                    activity.attachment.filename,  # TODO: correct as file path
+                    activity.attachment.url,
                     agent_created=True,
                     step_id=step.step_id,
                 )
@@ -172,7 +171,7 @@ class JiraAgent(Agent):
                         await self.db.create_artifact(
                             task_id,
                             attachment.filename,
-                            attachment.filename,  # TODO: correct as file path
+                            attachment.url,
                             agent_created=True,
                             step_id=step.step_id,
                         )

@@ -1,4 +1,4 @@
-from typing import Dict, Optional, Any
+from typing import Dict, Optional
 import os
 import re
 import ast
@@ -103,13 +103,13 @@ async def run_python_code(
     project: Project,
     issue: Issue,
     query: str,
-    project_root_path: str,
 ) -> AbilityResult:
     """
     Run a python code
     """
     query = sanitize_input(query)
     project_dir = agent.workspace.get_project_path_by_key(project.key)
+    logger.error(str(project_dir))
     python_repl = PythonAstREPLTool(
         _globals=globals(), _locals=None, _working_directory=str(project_dir)
     )
@@ -139,7 +139,7 @@ async def run_python_code(
 
     return AbilityResult(
         ability_name="run_python_code",
-        ability_args={"query": query, "project_root_path": project_root_path},
+        ability_args={"query": query},
         success=True,
         message=output,
         activities=activities,

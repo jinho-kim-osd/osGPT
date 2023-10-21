@@ -160,10 +160,15 @@ class AgentUser(User, Agent):
 
         while not is_activity_type and stack < max_chained_calls:
             logger.info(f"[{project.key}-{issue.id}] > Stack: {stack}")
+            stack += 1
+
             message = await get_openai_response(messages, functions=functions)
+            content = message.get("content", "")
+
             if "function_call" in message:
                 fn_name = message["function_call"]["name"]
                 fn_args = json.loads(message["function_call"]["arguments"])
+
                 logger.info(
                     f"[{project.key}-{issue.id}] > Function request: {fn_name}({fn_args})"
                 )
@@ -171,21 +176,16 @@ class AgentUser(User, Agent):
                     fn_response: AbilityResult = await self.abilities.run_ability(
                         project, issue, fn_name, **fn_args
                     )
-                    if isinstance(fn_response, str):
-                        logger.error(
-                            f"[{project.key}-{issue.id}] > Function Response: {fn_response}"
-                        )
                     logger.info(str(fn_response.summary()))
 
-                    for activity in fn_response.activities:
-                        activities.append(activity)
-                        is_activity_type = True
-
-                    if is_activity_type:
+                    if fn_response.activities:
+                        activities.extend(fn_response.activities)
                         break
 
                 except Exception as e:
-                    logger.error(f"[{project.key}-{issue.id}] > Error: {str(e)}")
+                    logger.error(
+                        f"[{project.key}-{issue.id if issue else 'N/A'}] > Error: {str(e)}"
+                    )
                     fn_response = AbilityResult(
                         ability_name=fn_name,
                         ability_args=fn_args,
@@ -200,21 +200,27 @@ class AgentUser(User, Agent):
                         "content": fn_response.summary(),
                     }
                 )
-            elif message["content"] == "":
+                messages.append(
+                    {
+                        "role": "user",
+                        "content": project.display(),
+                    }
+                )
+            elif not content and force_function:
+                logger.error(
+                    f"[{project.key}-{issue.id}] > Invalid Response: {str(message)}"
+                )
+                messages.append({"role": "user", "content": "Use functions only."})
+            elif not content:
                 break
             else:
-                if force_function:
-                    logger.error(
-                        f"[{project.key}-{issue.id}] > Invalid Response: {str(message)}"
-                    )
-                    messages.append({"role": "user", "content": "Use functions only."})
-                else:
-                    raise NotImplementedError
+                raise NotImplementedError
+
             print(project.display())
             messages.append({"role": "user", "content": project.display()})
 
         if stack >= max_chained_calls:
             logger.info(
-                f"[{project.key}-{issue.id}] > Reached max chained function calls: {max_chained_calls}"
+                f"[{project.key}-{issue.id if issue else 'N/A'}] > Reached max chained function calls: {max_chained_calls}"
             )
         return activities
