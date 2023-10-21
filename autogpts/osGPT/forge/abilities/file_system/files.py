@@ -30,11 +30,14 @@ logger = ForgeLogger(__name__)
 
 @ability(
     name="write_file",
-    description="Write data to a file",
+    description=(
+        "Write data to a file within the workspace. "
+        "Note: All file paths used within the this function should be within the specified project_root_path.",
+    ),
     parameters=[
         {
             "name": "file_path",
-            "description": "Path to the file",
+            "description": "Path to the file. This function is applicable to files only, not directories. All file paths specified must be within the project directory.",
             "type": "string",
             "required": True,
         },

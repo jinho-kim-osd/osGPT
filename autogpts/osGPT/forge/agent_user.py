@@ -70,7 +70,7 @@ class AgentUser(User, Agent):
         return None
 
     async def work_on_issue(self, project: Project, issue: Issue) -> List[Activity]:
-        logger.error(f"[{project.key}-{issue.id}] > Work on Issue")
+        logger.info(f"[{project.key}-{issue.id}] > Work on Issue")
         old_status = issue.status
         issue.status = Status.IN_PROGRESS
 
