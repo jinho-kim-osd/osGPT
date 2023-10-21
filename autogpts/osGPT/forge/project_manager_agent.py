@@ -3,7 +3,7 @@ import json
 from forge.sdk import ForgeLogger, PromptEngine
 
 from .agent_user import AgentUser
-from .schema import Project, Issue, User, Activity
+from .schema import Project, Issue, Activity
 from .utils import get_openai_response
 
 logger = ForgeLogger(__name__)
@@ -13,11 +13,11 @@ class ProjectManagerAgentUser(AgentUser):
     async def select_worker(
         self,
         project: Project,
-    ) -> Tuple[User, Optional[Issue]]:
+    ) -> Tuple[AgentUser, Optional[Issue]]:
         prompt_engine = PromptEngine("select-worker")
-        project_member = project.get_member(self.id)
+        project_member = project.get_member(self.public_name)
         system_prompt = prompt_engine.load_prompt(
-            template="system", project_role=project_member.project_role
+            template="system", job_title=project_member.user.job_title
         )
         user_prompt = prompt_engine.load_prompt(
             template="user",
@@ -33,11 +33,16 @@ class ProjectManagerAgentUser(AgentUser):
         message = await get_openai_response(messages)
         response = json.loads(message["content"])
         logger.info(
-            f"[{project.key}] {self.name} > Next worker: {response['next_person']} (Issue ID: {response['issue_id']})"
+            f"[{project.key}] {self.public_name} > Next worker: {response['next_person']} (Issue ID: {response['issue_id']})"
         )
         issue = project.get_issue(response["issue_id"])
-        worker = project.get_user_with_name(response["next_person"])
+        member = project.get_member(response["next_person"])
+        worker = member.user
         return worker, issue
+
+    async def work_on_issue(self, project: Project, issue: Issue) -> List[Activity]:
+        # TODO: clarify requirements?
+        return await super().work_on_issue(project, issue)
 
     async def resolve_issue(self, project: Project, issue: Issue) -> List[Activity]:
         return await self.execute_task_with_prompt(

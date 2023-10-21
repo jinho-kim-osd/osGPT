@@ -20,7 +20,7 @@ from forge.sdk import AgentDB, ForgeLogger, NotFoundError, Base
 
 # from .message import Message
 # from .profile_agent import JiraAgent
-# from .workspace import CollaborationWorkspace
+# from .workspace import Workspace
 
 LOG = ForgeLogger(__name__)
 

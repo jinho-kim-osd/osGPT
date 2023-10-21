@@ -10,7 +10,7 @@ from pydantic import BaseModel, Field
 from forge.sdk.forge_log import ForgeLogger
 from ..registry import ability
 from ..schema import AbilityResult
-from ...schema import Project, Issue, AttachmentUploadActivity
+from ...schema import Project, Issue, Attachment, AttachmentUploadActivity
 
 logger = ForgeLogger(__name__)
 
@@ -87,20 +87,11 @@ def sanitize_input(query: str) -> str:
         "Input should be a valid python command. "
         "When using this tool, sometimes output is abbreviated - "
         "make sure it does not look abbreviated before using it in your answer."
-        "Note: All file paths used within the Python code should be within the specified project_root_path."
-        # "Note: CSV files can be either comma-separated or tab-separated. "
-        # "All csv files are tab-separated."  # TODO: should be in prompt?
     ),
     parameters=[
         {
             "name": "query",
             "description": "Code snippet to run",
-            "type": "string",
-            "required": True,
-        },
-        {
-            "name": "project_root_path",
-            "description": "The project root path. All file paths specified in the Python code must be within this directory.",
             "type": "string",
             "required": True,
         },
@@ -118,22 +109,33 @@ async def run_python_code(
     Run a python code
     """
     query = sanitize_input(query)
-    working_dir = agent.workspace._resolve_relative_path(".")
+    project_dir = agent.workspace.get_project_path_by_key(project.key)
     python_repl = PythonAstREPLTool(
-        _globals=globals(), _locals=None, _working_directory=str(working_dir)
+        _globals=globals(), _locals=None, _working_directory=str(project_dir)
     )
 
-    before_attachments = set(agent.workspace.list_attachments(project_root_path))
+    # TODO: find better approach
+    before_files = set(agent.workspace.list_files_by_key(project.key))
     output = python_repl.run(query)
-    after_attachments = set(agent.workspace.list_attachments(project_root_path))
-    new_attachments = after_attachments - before_attachments
+    after_files = set(agent.workspace.list_files_by_key(project.key))
+    new_files = after_files - before_files
 
     activities = []
-    for attachment in new_attachments:
-        activty = AttachmentUploadActivity(created_by=agent, attachment=attachment)
-        issue.add_attachment(attachment)
-        issue.add_activity(activty)
-        activities.append(activty)
+    attachments = []
+    for file in new_files:
+        if file.is_file():
+            attachment = Attachment(
+                filename=file.name,
+                filesize=file.stat().st_size,
+                url=str(file.absolute()),
+            )
+
+            activty = AttachmentUploadActivity(created_by=agent, attachment=attachment)
+            issue.add_attachment(attachment)
+            issue.add_activity(activty)
+
+            attachments.append(attachment)
+            activities.append(activty)
 
     return AbilityResult(
         ability_name="run_python_code",
@@ -141,5 +143,5 @@ async def run_python_code(
         success=True,
         message=output,
         activities=activities,
-        attachments=new_attachments,
+        attachments=attachments,
     )

@@ -19,13 +19,13 @@ from .schema import (
     IssueType,
     IssueLinkType,
     Comment,
+    Attachment,
     AttachmentUploadActivity,
     IssueCreationActivity,
 )
 from .project_manager_agent import ProjectManagerAgentUser
-from .agent_user import AgentUser
 from .db import ForgeDatabase
-from .workspace import CollaborationWorkspace
+from .workspace import Workspace
 
 
 logger = ForgeLogger(__name__)
@@ -40,10 +40,10 @@ class JiraAgent(Agent):
     def __init__(
         self,
         database: ForgeDatabase,
-        workspace: CollaborationWorkspace,
+        workspace: Workspace,
     ):
         self.db = database
-        self.workspace = workspace
+        self.workspace: Workspace = workspace
         self.abilities = AbilityRegister(self, None)
 
     def reset(self):
@@ -56,7 +56,7 @@ class JiraAgent(Agent):
         task = await super().create_task(task_request)
         return task
 
-    async def create_issue(
+    def create_issue(
         self,
         reporter: User,
         project: Project,
@@ -87,47 +87,34 @@ class JiraAgent(Agent):
     def create_issue_from_user_request(
         self, task_id: str, project: Project, input: str
     ):
-        user_proxy_agent = project.get_user_with_name(
-            os.environ.get("DEFAULT_USER_NAME")
-        )
-
-        # epic_issue = Epic(
-        #     id=len(project.issues) + 1,
-        #     summary="Arana Hacks Challenges",
-        #     description="Participants will tackle a series of tasks, emphasizing real-world application of data handling, programming, web scraping, and versatile problem-solving skills. Each task is tailored to elevate in complexity, pushing the boundaries of innovation and technical expertise.",
-        #     assignee=project.project_leader,
-        #     reporter=user_proxy_agent,
-        # )
-        # project.add_issue(epic_issue)
-        # activity = IssueCreationActivity(created_by=user_proxy_agent)
-        # epic_issue.add_activity(activity)
-
-        issue = Issue(
-            id=len(project.issues) + 1,
-            summary=input,
+        self.workspace.register_project_key_path(project.key, f"./{task_id}")
+        user_proxy = project.project_leader
+        issue = self.create_issue(
+            reporter=user_proxy,
+            project=project,
             type=IssueType.TASK,
-            assignee=project.project_leader,
-            reporter=user_proxy_agent,
-            # parent_issue=epic_issue,
+            summary=input,
+            assignee=user_proxy,
         )
         project.add_issue(issue)
-        activity = IssueCreationActivity(created_by=user_proxy_agent)
+
+        activity = IssueCreationActivity(created_by=user_proxy)
         issue.add_activity(activity)
 
-        existing_attachments = self.workspace.list_attachments(f"./{task_id}/.")
-        for attachment in existing_attachments:
-            activty = AttachmentUploadActivity(
-                created_by=user_proxy_agent, attachment=attachment
-            )
-            issue.add_attachment(attachment)
-            issue.add_activity(activty)
-
-        issue.add_activity(
-            Comment(
-                content=f"Project Root Path is './{task_id}'. Operate exclusively within this directory.",
-                created_by=user_proxy_agent,
-            )
-        )
+        files_and_dirs = self.workspace.list_files_by_key(project.key)
+        for file in files_and_dirs:
+            if file.is_file():
+                attachment = Attachment(
+                    filename=file.name,
+                    filesize=file.stat().st_size,
+                    url=str(file.absolute())
+                    # url=str(file.relative_to(self.workspace.service.base_path / path)),
+                )
+                activty = AttachmentUploadActivity(
+                    created_by=user_proxy, attachment=attachment
+                )
+                issue.add_attachment(attachment)
+                issue.add_activity(activty)
 
     async def execute_step(self, task_id: str, step_request: StepRequestBody) -> Step:
         """Execute a task step and update its status and output."""
@@ -163,7 +150,7 @@ class JiraAgent(Agent):
             elif issue.status == Status.IN_PROGRESS:
                 activities = await worker.resolve_issue(project, issue)
             elif issue.status == Status.RESOLVED:
-                if worker.id != project_leader.id:
+                if worker.public_name != project_leader.public_name:
                     logger.error("Maybe worse results.")
                     activities = await worker.resolve_issue(project, issue)
                 else:

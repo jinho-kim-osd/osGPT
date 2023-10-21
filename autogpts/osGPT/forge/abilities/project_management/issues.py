@@ -41,9 +41,8 @@ async def change_assignee(
     Change the assignee of a specified Jira issue
     """
     new_assignee_name = new_assignee
+    new_assignee = project.get_member(new_assignee_name).user
     old_assignee = issue.assignee
-    new_assignee = project.get_user_with_name(new_assignee_name)
-    issue.assignee = new_assignee
 
     activity = AssignmentChangeActivity(
         old_assignee=old_assignee, new_assignee=new_assignee, created_by=agent
@@ -258,7 +257,7 @@ async def create_issue(
     Create a new Jira issue with the specified summary, assignee, and type
     """
     # Getting the user from the workspace using the assignee username
-    assignee_user = project.get_user_with_name(assignee)
+    member = project.get_member(assignee)
 
     parent_issue = None
     if parent_issue_id is not None:
@@ -268,7 +267,7 @@ async def create_issue(
     issue = Issue(
         id=len(project.issues) + 1,
         summary=summary,
-        assignee=assignee_user,
+        assignee=member.user,
         type=type,
         reporter=agent,
         parent_issue=parent_issue,

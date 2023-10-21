@@ -4,7 +4,7 @@ from forge.sdk import LocalWorkspace
 
 from .agent_user import AgentUser
 from .project_manager_agent import ProjectManagerAgentUser
-from .workspace import CollaborationWorkspace
+from .workspace import Workspace
 from .db import ForgeDatabase
 from .schema import (
     Role,
@@ -25,18 +25,16 @@ from .schema import (
 )
 
 
-def setup_workspace(db: ForgeDatabase) -> CollaborationWorkspace:
-    workspace = CollaborationWorkspace(
+def setup_workspace(db: ForgeDatabase) -> Workspace:
+    workspace = Workspace(
         name=os.getenv("DEFAULT_WORKSPACE_NAME"),
         service=LocalWorkspace(os.getenv("WORKSPACE_BASE_PATH")),
     )
     workspace.reset()
 
-    # Creating users
-    user_proxy_agent = ProjectManagerAgentUser(
-        id=os.environ.get("DEFAULT_USER_ID"),
-        name=os.environ.get("DEFAULT_USER_NAME"),
-        role=Role.OWNER,
+    project_manager = ProjectManagerAgentUser(
+        public_name="Norman Osborn",
+        job_title="Project Manager",
         workspace=workspace,
         ability_names=[
             "read_file",
@@ -48,42 +46,19 @@ def setup_workspace(db: ForgeDatabase) -> CollaborationWorkspace:
             "change_assignee",
             # "create_issue_link",
             # "remove_issue_link",
-            "finish_work",
-        ],
-        db=db,
-    )
-    project_manager = ProjectManagerAgentUser(
-        id="norman_osborn",
-        name="Norman Osborn",
-        role=Role.ADMIN,
-        workspace=workspace,
-        ability_names=[
-            "read_file",
-            "list_files",
-            "change_issue_status",
-            "close_issue",
-            "add_comment",
-            "create_issue",
-            "change_assignee",
-            "create_issue_link",
-            "remove_issue_link",
             "finish_work",
         ],
         db=db,
     )
     engineer = AgentUser(
-        id="max_dillon",
-        name="Max Dillon",
-        role=Role.MEMBER,
+        public_name="Max Dillon",
+        job_title="Engineer",
         workspace=workspace,
         ability_names=[
             "read_file",
-            # "write_file",
             "list_files",
             "change_issue_status",
             "add_comment",
-            # "create_issue_link",
-            # "remove_issue_link",
             "run_python_code",
             "finish_work",
         ],
@@ -91,9 +66,8 @@ def setup_workspace(db: ForgeDatabase) -> CollaborationWorkspace:
     )
 
     researcher = AgentUser(
-        id="jiyeon_lee",
-        name="Jiyeon Lee",
-        role=Role.MEMBER,
+        public_name="Jiyeon Lee",
+        job_title="Researcher",
         workspace=workspace,
         ability_names=[
             "read_file",
@@ -101,8 +75,6 @@ def setup_workspace(db: ForgeDatabase) -> CollaborationWorkspace:
             "list_files",
             "change_issue_status",
             "add_comment",
-            # "create_issue_link",
-            # "remove_issue_link",
             "web_search",
             "read_webpage",
             "finish_work",
@@ -135,19 +107,16 @@ def setup_workspace(db: ForgeDatabase) -> CollaborationWorkspace:
     ]
     workflow = Workflow(name="Default Workflow", transitions=transitions)
 
-    # Creating a project and adding the issue to it
+    # Creating a project
     project = Project(
         key="AHC",
         name="Arena Hacks Challenge 2023",
         project_leader=project_manager,
         workflow=workflow,
     )
-    # Add members with workspace, project role
-    for user, role in zip(
-        [user_proxy_agent, project_manager, engineer, researcher],
-        ["Boss", "Project Manager", "Engineer", "Researcher"],
-    ):
-        workspace.add_member(user, role)
-        project.add_member(user, role)
     workspace.add_project(project)
+
+    project.add_member(project_manager, Role.ADMIN)
+    project.add_member(engineer, Role.MEMBER)
+    project.add_member(researcher, Role.MEMBER)
     return workspace

@@ -7,7 +7,7 @@ from forge.sdk import (
     PromptEngine,
 )
 from .utils import get_openai_response
-from .workspace import CollaborationWorkspace
+from .workspace import Workspace
 
 from .abilities.schema import AbilityResult
 from .abilities.registry import ForgeAbilityRegister
@@ -28,12 +28,14 @@ logger = ForgeLogger(__name__)
 
 
 class AgentUser(User, Agent):
+    # TODO: Implement Agentprotocol to use standalone.
     db: ForgeDatabase
     type: UserType = UserType.AGENT
-    workspace: CollaborationWorkspace
+    workspace: Workspace
     ability_names: Optional[List[str]]
 
     class Config:
+        arbitrary_types_allowed = True
         extra = "allow"
 
     def __str__(self):
@@ -107,14 +109,14 @@ class AgentUser(User, Agent):
         prompt_name: str,
         ability_names: Optional[List[str]] = None,
         force_function: bool = True,
-        max_chained_calls: int = 1,
+        max_chained_calls: int = 3,
     ) -> List[Activity]:
         activities = []
 
         prompt_engine = PromptEngine(prompt_name)
-        project_member = project.get_member(self.id)
+        project_member = project.get_member(self.public_name)
         system_prompt = prompt_engine.load_prompt(
-            template="system", project_role=project_member.project_role
+            template="system", job_title=project_member.user.job_title
         )
 
         user_prompt = prompt_engine.load_prompt(

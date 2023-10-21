@@ -25,19 +25,19 @@ logger = ForgeLogger(__name__)
 #     """
 #     List files in a workspace directory
 #     """
-#     return agent.workspace.list_relative_path(path)
+#     return agent.workspace.list_files_by_key(key=project.key, path=path)
 
 
 @ability(
     name="write_file",
     description=(
         "Write data to a file within the workspace. "
-        "Note: All file paths used within the this function should be within the specified project_root_path.",
+        "Note: All file paths used within the this function should be within the specified project_root_path."
     ),
     parameters=[
         {
             "name": "file_path",
-            "description": "Path to the file. This function is applicable to files only, not directories. All file paths specified must be within the project directory.",
+            "description": "Relative path to the file.",
             "type": "string",
             "required": True,
         },
@@ -59,7 +59,14 @@ async def write_file(
     if isinstance(data, str):
         data = data.encode()
 
-    attachment = agent.workspace.write_relative_path(path=file_path, data=data)
+    file_info = agent.workspace.write_file_by_key(
+        key=project.key, path=file_path, data=data
+    )
+    attachment = Attachment(
+        url=file_info["url"],
+        filename=file_info["filename"],
+        filesize=file_info["filesize"],
+    )
     activty = AttachmentUploadActivity(created_by=agent, attachment=attachment)
     issue.add_attachment(attachment)
     issue.add_activity(activty)
@@ -91,7 +98,7 @@ async def read_file(
     """
     Read data from a file
     """
-    data = agent.workspace.read_relative_path(path=file_path)
+    data = agent.workspace.read_by_key(key=project.key, path=file_path)
     if isinstance(data, bytes):
         data = data.decode("utf-8")
     return AbilityResult(

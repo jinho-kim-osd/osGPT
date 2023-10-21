@@ -78,6 +78,7 @@ async def get_openai_response(
             "https://api.openai.com/v1/chat/completions",
             headers=headers,
             json=json_data,
+            timeout=15,
         )
         response = response.json()
     except Exception as e:
