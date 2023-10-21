@@ -111,6 +111,12 @@ class JiraAgent(Agent):
             activty = AttachmentUploadActivity(
                 created_by=user_proxy, attachment=attachment
             )
+            issue.add_activity(
+                Comment(
+                    created_by=user_proxy,
+                    content="Strictly adhere to letter case in the assigned tasks; remember that 'Yellow' and 'yellow' are NOT the same.",
+                )
+            )
             issue.add_attachment(attachment)
             issue.add_activity(activty)
 

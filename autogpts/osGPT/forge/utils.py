@@ -46,21 +46,21 @@ async def get_openai_response(
     messages: List[Dict[str, Any]],
     functions: Optional[Dict[str, Any]] = None,
     function_call: Optional[str] = None,
-    temperature: float = 0.2,
-    top_p: float = 0.1,
+    temperature: float = 0.3,
+    top_p: float = 0.2,
     # top_p: float = 0.75,
-    presence_penalty: float = 1.0,
-    frequency_penalty: float = 1.0,
+    presence_penalty: float = 0,
+    frequency_penalty: float = 0,
     n: int = 1,
     **kwargs,
 ) -> Union[Dict[str, str], Dict[str, Dict]]:
     if functions and function_call is None:
         function_call = "auto"
     # We use HTTP requests for timeout
-    headers = {
-        "Content-Type": "application/json",
-        "Authorization": "Bearer " + openai.api_key,
-    }
+    # headers = {
+    #     "Content-Type": "application/json",
+    #     "Authorization": "Bearer " + openai.api_key,
+    # }
     json_data = {
         "model": "gpt-4",
         "messages": messages,
@@ -74,24 +74,24 @@ async def get_openai_response(
         json_data.update({"functions": functions})
     if function_call is not None:
         json_data.update({"function_call": function_call})
-    try:
-        response = requests.post(
-            "https://api.openai.com/v1/chat/completions",
-            headers=headers,
-            json=json_data,
-            timeout=30,
-        )
-        response = response.json()
-    except Exception as e:
-        print("Unable to generate ChatCompletion response")
-        print(f"Exception: {e}")
-        return e
-    if n > 1:
-        res: List[str] = [""] * n
-        for choice in response["choices"]:
-            res[choice["index"]] = choice["message"]
-        return res
-    return response["choices"][0]["message"]
+    # try:
+    #     response = requests.post(
+    #         "https://api.openai.com/v1/chat/completions",
+    #         headers=headers,
+    #         json=json_data,
+    #         timeout=30,
+    #     )
+    #     response = response.json()
+    # except Exception as e:
+    #     print("Unable to generate ChatCompletion response")
+    #     print(f"Exception: {e}")
+    #     return e
+    # if n > 1:
+    #     res: List[str] = [""] * n
+    #     for choice in response["choices"]:
+    #         res[choice["index"]] = choice["message"]
+    #     return res
+    # return response["choices"][0]["message"]
 
     # response = openai.ChatCompletion.create(
     #     model="gpt-4",
@@ -108,20 +108,19 @@ async def get_openai_response(
     #     # frequency_penalty=0.0,
     # )
     ## NOTE: Litellm is not reliable for me
-    # response = await chat_completion_request(
-    #     messages=messages,
-    #     model="gpt-4",
-    #     temperature=0.4,
-    #     top_p=0.3,
-    #     # frequency_penalty=0.0,
-    #     # presence_penalty=0.0,
-    #     max_tokens=max_tokens,
-    #     stop=stop,
-    #     n=n,
-    #     functions=functions,
-    #     request_timeout=20,
-    #     **kwargs,
-    # )
+    response = await chat_completion_request(
+        **json_data
+        # messages=messages,
+        # model="gpt-4",
+        # temperature=temperature,
+        # top_p=top_p,
+        # frequency_penalty=frequency_penalty,
+        # presence_penalty=presence_penalty,
+        # n=n,
+        # functions=functions,
+        # request_timeout=20,
+        # **kwargs,
+    )
     if n > 1:
         res: List[str] = [""] * n
         for choice in response.choices:

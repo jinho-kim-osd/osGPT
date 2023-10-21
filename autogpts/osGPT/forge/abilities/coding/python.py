@@ -105,9 +105,9 @@ async def run_python_code(
     Run a python code
     """
     query = sanitize_input(query)
-    project_dir = agent.workspace.get_project_path_by_key(project.key)
+    project_root = agent.workspace.get_project_path_by_key(project.key)
     python_repl = PythonAstREPLTool(
-        _globals=globals(), _locals=None, _working_directory=str(project_dir)
+        _globals=globals(), _locals=None, _working_directory=str(project_root)
     )
 
     # TODO: find better approach

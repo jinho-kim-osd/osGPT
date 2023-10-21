@@ -64,7 +64,7 @@ async def read_csv(
     parameters=[
         {
             "name": "file_path",
-            "description": "Path to the CSV file",
+            "description": "Relative path to the CSV file",
             "type": "string",
             "required": True,
         },
@@ -82,11 +82,11 @@ async def detect_csv_separator(
     """
     separator = None
     project_root = agent.workspace.get_project_path_by_key(project.key)
-    if not project_root:
-        raise ValueError(f"No registered path for key {project.key}!")
     full_path = project_root / file_path
+    print(full_path)
     with open(full_path, "r") as file:
         first_line = file.readline()
+        print(first_line)
         if "," in first_line:
             separator = ","
         elif "\t" in first_line:
@@ -96,7 +96,9 @@ async def detect_csv_separator(
         message = f"The separator used in the file is: {separator}"
         success = True
     else:
-        message = "Unable to detect the separator used in the file."
+        message = (
+            f"Unable to detect the separator used in the file. First line: {first_line}"
+        )
         success = False
 
     return AbilityResult(
@@ -114,7 +116,7 @@ async def detect_csv_separator(
         "Provide the file path and the Python code to perform operations such as reading, "
         "modifying, and analyzing the CSV file. Utilize pandas DataFrame for effective manipulation. "
         "Ensure to assign your DataFrame to a variable for further operations. "
-        "The first code should be: df = pd.read_csv(CSV_FILE_PATH)"
+        "Begin your code with: df = pd.read_csv('<provided_file_path>') to load the CSV file into a DataFrame."
     ),
     parameters=[
         {
@@ -147,11 +149,11 @@ async def csv_python_executor(
     """
     Run a python code
     """
-    project_dir = agent.workspace.get_project_path_by_key(project.key)
-    python_code.replace("CSV_FILE_PATH", f"{project_dir}/{file_path}")
+    project_root = agent.workspace.get_project_path_by_key(project.key)
+    python_code.replace("CSV_FILE_PATH", f"{project_root}/{file_path}")
     python_code = sanitize_input(python_code)
     python_repl = PythonAstREPLTool(
-        _globals=globals(), _locals=None, _working_directory=str(project_dir)
+        _globals=globals(), _locals=None, _working_directory=str(project_root)
     )
 
     # TODO: find better approach

@@ -52,7 +52,7 @@ def setup_workspace(db: ForgeDatabase) -> Workspace:
     )
     document_specialist = AgentUser(
         public_name="Jinho Kim",
-        job_title="Document Specialist(csv, pdf, ...)",
+        job_title="CSV Specialist",
         workspace=workspace,
         ability_names=[
             "list_files",
@@ -69,7 +69,7 @@ def setup_workspace(db: ForgeDatabase) -> Workspace:
 
     engineer = AgentUser(
         public_name="Max Dillon",
-        job_title="Engineer",
+        job_title="Code Developer",
         workspace=workspace,
         ability_names=[
             "read_file",
