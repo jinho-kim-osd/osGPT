@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import os
 import json
 import time
 from itertools import islice
@@ -48,6 +49,7 @@ async def web_search(
             {
                 "engine": "google",
                 "q": query,
+                "api_key": os.getenv("SERPAPI_API_KEY"),
             }
         )
         results = search.get_dict()

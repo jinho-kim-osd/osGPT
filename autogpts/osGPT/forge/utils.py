@@ -47,7 +47,8 @@ async def get_openai_response(
     functions: Optional[Dict[str, Any]] = None,
     function_call: Optional[str] = None,
     temperature: float = 0.2,
-    top_p: float = 0.75,
+    top_p: float = 0.2,
+    # top_p: float = 0.75,
     presence_penalty: float = 0.5,
     frequency_penalty: float = 0.5,
     n: int = 1,
@@ -78,7 +79,7 @@ async def get_openai_response(
             "https://api.openai.com/v1/chat/completions",
             headers=headers,
             json=json_data,
-            timeout=15,
+            timeout=30,
         )
         response = response.json()
     except Exception as e:

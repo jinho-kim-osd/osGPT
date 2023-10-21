@@ -164,7 +164,7 @@ async def run_python_code(
         ability_name="run_python_code",
         ability_args={"query": query},
         success=True,
-        message=output,
+        message=str(output),
         activities=activities,
         attachments=attachments,
     )

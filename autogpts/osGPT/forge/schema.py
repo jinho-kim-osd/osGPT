@@ -373,7 +373,7 @@ class ProjectMember(BaseModel):
     role: Role
 
     def __str__(self):
-        return f"{self.user.public_name} (Role: {self.role})"
+        return f"{self.user.public_name} (Job: {self.user.job_title})"
 
 
 class Project(BaseModel):

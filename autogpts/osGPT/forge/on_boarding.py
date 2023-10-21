@@ -67,7 +67,7 @@ def setup_workspace(db: ForgeDatabase) -> Workspace:
 
     researcher = AgentUser(
         public_name="Jiyeon Lee",
-        job_title="Researcher",
+        job_title="Internet Researcher",
         workspace=workspace,
         ability_names=[
             "read_file",

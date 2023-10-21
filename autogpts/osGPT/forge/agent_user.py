@@ -164,7 +164,7 @@ class AgentUser(User, Agent):
 
             message = await get_openai_response(messages, functions=functions)
             content = message.get("content", "")
-            print(messages)
+
             if "function_call" in message:
                 fn_name = message["function_call"]["name"]
                 fn_args = json.loads(message["function_call"]["arguments"])
