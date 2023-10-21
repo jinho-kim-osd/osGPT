@@ -47,10 +47,10 @@ async def get_openai_response(
     functions: Optional[Dict[str, Any]] = None,
     function_call: Optional[str] = None,
     temperature: float = 0.2,
-    top_p: float = 0.2,
+    top_p: float = 0.1,
     # top_p: float = 0.75,
-    presence_penalty: float = 0.5,
-    frequency_penalty: float = 0.5,
+    presence_penalty: float = 1.0,
+    frequency_penalty: float = 1.0,
     n: int = 1,
     **kwargs,
 ) -> Union[Dict[str, str], Dict[str, Dict]]:
@@ -130,19 +130,19 @@ async def get_openai_response(
     return response.choices[0]["message"]
 
 
-def is_valid_json(json_str: str) -> bool:
+def parse_json(json_str: str):
+    # We are using a very rudimentary way to clean up the escape characters.
+    # This should be adjusted according to the actual needs and scenarios.
+    cleaned_json_str = (
+        json_str.replace("\\\\", "\\")
+        .replace('\\"', '"')
+        .replace("\\n", "\n")
+        .replace("\\t", "\t")
+    )
+
     try:
-        json.loads(json_str)
-        return True
-    except ValueError:
-        return False
-
-
-def extract_top_level_json(text: str) -> Optional[Dict]:
-    text = text.replace(".encode()", "").replace(".encode('utf-8')", "")
-    json_candidates = re.findall(r"(?<!\\)(?:\\\\)*\{(?:[^{}]|(?R))*\}", text)
-
-    for candidate in json_candidates:
-        if is_valid_json(candidate):
-            return json.loads(candidate)
-    return None
+        # Try to parse the JSON string directly
+        return json.loads(json_str)
+    except json.JSONDecodeError:
+        escaped_json_str = json_str.encode("unicode_escape").decode()
+        return json.loads(cleaned_json_str)

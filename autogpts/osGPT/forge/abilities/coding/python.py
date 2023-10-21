@@ -83,15 +83,12 @@ def sanitize_input(query: str) -> str:
 @ability(
     name="run_python_code",
     description=(
-        "A Python shell. Use this to execute python commands. "
-        "Input should be a valid python command. "
-        "When using this tool, sometimes output is abbreviated - "
-        "make sure it does not look abbreviated before using it in your answer."
+        "Execute Python commands. Useful for manipulating existing files and data analysis. Output might be abbreviated."
     ),
     parameters=[
         {
             "name": "query",
-            "description": "Code snippet to run",
+            "description": "Code snippet to run.",
             "type": "string",
             "required": True,
         },

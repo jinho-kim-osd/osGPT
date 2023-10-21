@@ -23,6 +23,7 @@ from .schema import (
     StatusChangeActivity,
 )
 from .db import ForgeDatabase
+from .utils import parse_json
 
 logger = ForgeLogger(__name__)
 
@@ -109,7 +110,7 @@ class AgentUser(User, Agent):
         prompt_name: str,
         ability_names: Optional[List[str]] = None,
         force_function: bool = True,
-        max_chained_calls: int = 3,
+        max_chained_calls: int = 10,
     ) -> List[Activity]:
         activities = []
 
@@ -149,7 +150,7 @@ class AgentUser(User, Agent):
         messages: List[Dict[str, Any]] = [],
         functions: Optional[Dict[str, Any]] = None,
         force_function: bool = False,
-        max_chained_calls: int = 7,
+        max_chained_calls: int = 10,
     ) -> List[Activity]:
         activities = []
         is_activity_type = False
@@ -167,12 +168,19 @@ class AgentUser(User, Agent):
 
             if "function_call" in message:
                 fn_name = message["function_call"]["name"]
-                fn_args = json.loads(message["function_call"]["arguments"])
-
-                logger.info(
-                    f"[{project.key}-{issue.id}] > Function request: {fn_name}({fn_args})"
-                )
                 try:
+                    fn_args = parse_json(message["function_call"]["arguments"])
+                except Exception as e:
+                    logger.error(
+                        f"[{project.key}-{issue.id if issue else 'N/A'}] > Error - {type(e).__name__}: {str(e)}"
+                    )
+                    raise ValueError(str(message["function_call"]["arguments"]))
+
+                try:
+                    logger.info(
+                        f"[{project.key}-{issue.id}] > Function request: {fn_name}({fn_args})"
+                    )
+
                     fn_response: AbilityResult = await self.abilities.run_ability(
                         project, issue, fn_name, **fn_args
                     )
@@ -184,12 +192,13 @@ class AgentUser(User, Agent):
 
                 except Exception as e:
                     logger.error(
-                        f"[{project.key}-{issue.id if issue else 'N/A'}] > Error: {str(e)}"
+                        f"[{project.key}-{issue.id if issue else 'N/A'}] > Error - {type(e).__name__}: {str(e)}"
                     )
+                    error_name = type(e).__name__
                     fn_response = AbilityResult(
                         ability_name=fn_name,
                         ability_args=fn_args,
-                        message=str(e),
+                        message=f"Error - {error_name}: {str(e)}",
                         success=False,
                     )
 
@@ -197,7 +206,7 @@ class AgentUser(User, Agent):
                     {
                         "role": "function",
                         "name": fn_name,
-                        "content": fn_response.summary(),
+                        "content": fn_response.message,
                     }
                 )
 
@@ -209,10 +218,10 @@ class AgentUser(User, Agent):
                 # )
             elif not content:
                 break
-            elif content["message"]:
+            elif content:
                 if force_function:
                     logger.error(
-                        f"[{project.key}-{issue.id}] > Invalid Response: {str(message)}"
+                        f"[{project.key}-{issue.id}] > Invalid Response: {str(content)}"
                     )
                     messages.append({"role": "user", "content": "Use functions only."})
                 else:
@@ -220,7 +229,7 @@ class AgentUser(User, Agent):
                         {
                             "role": "assistant",
                             "name": fn_name,
-                            "content": content["message"],
+                            "content": content,
                         }
                     )
             else:

@@ -50,6 +50,23 @@ def setup_workspace(db: ForgeDatabase) -> Workspace:
         ],
         db=db,
     )
+    document_specialist = AgentUser(
+        public_name="Jinho Kim",
+        job_title="Document Specialist(csv, pdf, ...)",
+        workspace=workspace,
+        ability_names=[
+            "list_files",
+            "change_issue_status",
+            "add_comment",
+            "finish_work",
+            "read_csv",
+            "write_file",
+            "csv_python_executor",
+            "detect_csv_separator",
+        ],
+        db=db,
+    )
+
     engineer = AgentUser(
         public_name="Max Dillon",
         job_title="Engineer",
@@ -117,6 +134,7 @@ def setup_workspace(db: ForgeDatabase) -> Workspace:
     workspace.add_project(project)
 
     project.add_member(project_manager, Role.ADMIN)
+    project.add_member(document_specialist, Role.MEMBER)
     project.add_member(engineer, Role.MEMBER)
     project.add_member(researcher, Role.MEMBER)
     return workspace

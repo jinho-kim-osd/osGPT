@@ -1,4 +1,4 @@
-from typing import List
+import json
 
 from ..registry import ability
 from ..schema import AbilityResult
@@ -87,11 +87,11 @@ async def write_file(
 
 @ability(
     name="read_file",
-    description="Read data from a specific file within the workspace, not applicable to directories",
+    description="Read data from a specific file within the workspace.",
     parameters=[
         {
             "name": "file_path",
-            "description": "Path to the file. This function is applicable to files only, not directories. All file paths specified must be within the project directory.",
+            "description": "Path to the file. Ensure to handle the file data within this ability rather than passing it directly to others.",
             "type": "string",
             "required": True,
         },
@@ -111,5 +111,5 @@ async def read_file(
         ability_name="read_file",
         ability_args={"file_path": file_path},
         success=True,
-        message=data,
+        message=json.dumps(data),
     )
