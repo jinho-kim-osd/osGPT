@@ -23,7 +23,6 @@ from .schema import (
     StatusChangeActivity,
 )
 from .db import ForgeDatabase
-from .utils import parse_json
 
 logger = ForgeLogger(__name__)
 
@@ -169,7 +168,7 @@ class AgentUser(User, Agent):
             if "function_call" in message:
                 fn_name = message["function_call"]["name"]
                 try:
-                    fn_args = parse_json(message["function_call"]["arguments"])
+                    fn_args = json.loads(message["function_call"]["arguments"])
                 except Exception as e:
                     logger.error(
                         f"[{project.key}-{issue.id if issue else 'N/A'}] > Error - {type(e).__name__}: {str(e)}"

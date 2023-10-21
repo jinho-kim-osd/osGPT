@@ -99,7 +99,12 @@ class JiraAgent(Agent):
         project.add_issue(issue)
 
         activity = IssueCreationActivity(created_by=user_proxy)
+        comment = Comment(
+            created_by=user_proxy,
+            content="Strictly adhere to letter case in the assigned tasks; remember that 'Yellow' and 'yellow' are NOT the same.",
+        )
         issue.add_activity(activity)
+        issue.add_activity(comment)
 
         file_infos = self.workspace.list_files_by_key(project.key)
         for file_info in file_infos:
@@ -110,12 +115,6 @@ class JiraAgent(Agent):
             )
             activty = AttachmentUploadActivity(
                 created_by=user_proxy, attachment=attachment
-            )
-            issue.add_activity(
-                Comment(
-                    created_by=user_proxy,
-                    content="Strictly adhere to letter case in the assigned tasks; remember that 'Yellow' and 'yellow' are NOT the same.",
-                )
             )
             issue.add_attachment(attachment)
             issue.add_activity(activty)

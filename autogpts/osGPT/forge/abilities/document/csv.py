@@ -40,7 +40,7 @@ async def read_csv(
     data = df.head(200).to_string()  # Adjust the number of rows to display here
 
     # Truncate the string if it's too long
-    max_length = 1000
+    max_length = 1500
     if len(data) > max_length:
         truncated_data = data[:max_length] + "...[abbreviated]"
     else:
@@ -83,7 +83,6 @@ async def detect_csv_separator(
     separator = None
     project_root = agent.workspace.get_project_path_by_key(project.key)
     full_path = project_root / file_path
-    print(full_path)
     with open(full_path, "r") as file:
         first_line = file.readline()
         print(first_line)
@@ -96,9 +95,7 @@ async def detect_csv_separator(
         message = f"The separator used in the file is: {separator}"
         success = True
     else:
-        message = (
-            f"Unable to detect the separator used in the file. First line: {first_line}"
-        )
+        message = "Unable to detect the separator used in the file."
         success = False
 
     return AbilityResult(
@@ -112,11 +109,10 @@ async def detect_csv_separator(
 @ability(
     name="csv_python_executor",
     description=(
-        "Execute Python code specifically for a designated CSV file. "
-        "Provide the file path and the Python code to perform operations such as reading, "
-        "modifying, and analyzing the CSV file. Utilize pandas DataFrame for effective manipulation. "
-        "Ensure to assign your DataFrame to a variable for further operations. "
-        "Begin your code with: df = pd.read_csv('<provided_file_path>') to load the CSV file into a DataFrame."
+        "Execute Python code for a specific CSV file using pandas. "
+        "The DataFrame is automatically initialized with 'df = pd.read_csv(<provided_file_path>, sep=<provided_sep>)'. "
+        "Simply add the necessary operations following this to perform your desired analysis or modifications on the data. "
+        "You can view the output by printing to the console, e.g., print(df['col1'].sum())."
     ),
     parameters=[
         {
@@ -126,13 +122,15 @@ async def detect_csv_separator(
             "required": True,
         },
         {
+            "name": "separator",
+            "description": "The separator used in the CSV file. Default is comma ','.",
+            "type": "string",
+            "required": False,
+            "default": ",",
+        },
+        {
             "name": "python_code",
-            "description": (
-                "Python code to execute on the specified CSV file. "
-                "Make use of pandas library for comprehensive and flexible data manipulation. "
-                "The file path will be automatically included in the code, "
-                "so just focus on the operations you want to perform on the DataFrame."
-            ),
+            "description": ("Python code to execute on the specified CSV file. "),
             "type": "string",
             "required": True,
         },
@@ -144,16 +142,22 @@ async def csv_python_executor(
     project: Project,
     issue: Issue,
     file_path: str,
-    python_code: str,
+    separator: str = ",",
+    python_code: str = "",
 ) -> AbilityResult:
     """
     Run a python code
     """
-    project_root = agent.workspace.get_project_path_by_key(project.key)
-    python_code.replace("CSV_FILE_PATH", f"{project_root}/{file_path}")
+    project_dir = agent.workspace.get_project_path_by_key(project.key)
+    if "pd.read_csv" not in python_code:
+        python_code = (
+            f"df = pd.read_csv('{file_path}', sep='{separator}')\n{python_code}"
+        )
+    else:
+        python_code = python_code.replace("CSV_FILE_PATH", f"{project_dir}/{file_path}")
     python_code = sanitize_input(python_code)
     python_repl = PythonAstREPLTool(
-        _globals=globals(), _locals=None, _working_directory=str(project_root)
+        _globals=globals(), _locals=None, _working_directory=str(project_dir)
     )
 
     # TODO: find better approach

@@ -56,11 +56,6 @@ async def get_openai_response(
 ) -> Union[Dict[str, str], Dict[str, Dict]]:
     if functions and function_call is None:
         function_call = "auto"
-    # We use HTTP requests for timeout
-    # headers = {
-    #     "Content-Type": "application/json",
-    #     "Authorization": "Bearer " + openai.api_key,
-    # }
     json_data = {
         "model": "gpt-4",
         "messages": messages,
@@ -74,6 +69,12 @@ async def get_openai_response(
         json_data.update({"functions": functions})
     if function_call is not None:
         json_data.update({"function_call": function_call})
+
+    # We use HTTP requests for timeout
+    # headers = {
+    #     "Content-Type": "application/json",
+    #     "Authorization": "Bearer " + openai.api_key,
+    # }
     # try:
     #     response = requests.post(
     #         "https://api.openai.com/v1/chat/completions",
@@ -93,33 +94,10 @@ async def get_openai_response(
     #     return res
     # return response["choices"][0]["message"]
 
-    # response = openai.ChatCompletion.create(
-    #     model="gpt-4",
-    #     messages=messages,
-    #     temperature=temperature,
-    #     top_p=top_p,
-    #     max_tokens=max_tokens,
-    #     functions=functions,
-    #     function_call="auto",
-    #     n=n,
-    #     stop=stop,
-    #     **kwargs
-    #     # presence_penalty=0.0,
-    #     # frequency_penalty=0.0,
-    # )
     ## NOTE: Litellm is not reliable for me
     response = await chat_completion_request(
-        **json_data
-        # messages=messages,
-        # model="gpt-4",
-        # temperature=temperature,
-        # top_p=top_p,
-        # frequency_penalty=frequency_penalty,
-        # presence_penalty=presence_penalty,
-        # n=n,
-        # functions=functions,
-        # request_timeout=20,
-        # **kwargs,
+        **json_data,
+        **kwargs,
     )
     if n > 1:
         res: List[str] = [""] * n
@@ -127,21 +105,3 @@ async def get_openai_response(
             res[choice.index] = choice["message"]
         return res
     return response.choices[0]["message"]
-
-
-def parse_json(json_str: str):
-    # We are using a very rudimentary way to clean up the escape characters.
-    # This should be adjusted according to the actual needs and scenarios.
-    cleaned_json_str = (
-        json_str.replace("\\\\", "\\")
-        .replace('\\"', '"')
-        .replace("\\n", "\n")
-        .replace("\\t", "\t")
-    )
-
-    try:
-        # Try to parse the JSON string directly
-        return json.loads(json_str)
-    except json.JSONDecodeError:
-        escaped_json_str = json_str.encode("unicode_escape").decode()
-        return json.loads(cleaned_json_str)
