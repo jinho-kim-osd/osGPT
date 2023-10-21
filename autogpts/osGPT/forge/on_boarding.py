@@ -74,6 +74,8 @@ def setup_workspace(db: ForgeDatabase) -> Workspace:
         ability_names=[
             "read_file",
             "list_files",
+            "create_python_file",
+            "execute_python_file",
             "change_issue_status",
             "add_comment",
             "run_python_code",

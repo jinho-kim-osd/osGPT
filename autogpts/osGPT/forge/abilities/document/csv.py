@@ -4,7 +4,7 @@ import json
 from ..registry import ability
 from ..schema import AbilityResult
 from ...schema import Project, Issue, Attachment, AttachmentUploadActivity
-from ..coding.python import sanitize_input, PythonAstREPLTool
+from ..coding.execute import sanitize_input, PythonAstREPLTool
 
 
 @ability(
