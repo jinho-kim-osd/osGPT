@@ -52,25 +52,25 @@ def setup_workspace(db: ForgeDatabase) -> CollaborationWorkspace:
         ],
         db=db,
     )
-    # project_manager = ProjectManagerAgentUser(
-    #     id="norman_osborn",
-    #     name="Norman Osborn",
-    #     role=Role.ADMIN,
-    #     workspace=workspace,
-    #     ability_names=[
-    #         "read_file",
-    #         "list_files",
-    #         "change_issue_status",
-    #         "close_issue",
-    #         "add_comment",
-    #         "create_issue",
-    #         "change_assignee",
-    #         "create_issue_link",
-    #         "remove_issue_link",
-    #         "finish_work",
-    #     ],
-    #     db=db,
-    # )
+    project_manager = ProjectManagerAgentUser(
+        id="norman_osborn",
+        name="Norman Osborn",
+        role=Role.ADMIN,
+        workspace=workspace,
+        ability_names=[
+            "read_file",
+            "list_files",
+            "change_issue_status",
+            "close_issue",
+            "add_comment",
+            "create_issue",
+            "change_assignee",
+            "create_issue_link",
+            "remove_issue_link",
+            "finish_work",
+        ],
+        db=db,
+    )
     engineer = AgentUser(
         id="max_dillon",
         name="Max Dillon",
@@ -139,13 +139,13 @@ def setup_workspace(db: ForgeDatabase) -> CollaborationWorkspace:
     project = Project(
         key="AHC",
         name="Arena Hacks Challenge 2023",
-        project_leader=user_proxy_agent,
+        project_leader=project_manager,
         workflow=workflow,
     )
     # Add members with workspace, project role
     for user, role in zip(
-        [user_proxy_agent, engineer, researcher],
-        ["Project Manager", "Engineer", "Researcher"],
+        [user_proxy_agent, project_manager, engineer, researcher],
+        ["Boss", "Project Manager", "Engineer", "Researcher"],
     ):
         workspace.add_member(user, role)
         project.add_member(user, role)

@@ -41,28 +41,25 @@ class PythonAstREPLTool(BaseModel):
         query: str,
     ) -> str:
         """Use the tool."""
-        try:
-            with change_cwd(self.working_directory):
-                query = sanitize_input(query)
-                tree = ast.parse(query)
-                module = ast.Module(tree.body[:-1], type_ignores=[])
-                exec(ast.unparse(module), self.globals, self.locals)  # type: ignore
-                module_end = ast.Module(tree.body[-1:], type_ignores=[])
-                module_end_str = ast.unparse(module_end)  # type: ignore
-                io_buffer = StringIO()
-                try:
-                    with redirect_stdout(io_buffer):
-                        ret = eval(module_end_str, self.globals, self.locals)
-                        if ret is None:
-                            return io_buffer.getvalue()
-                        else:
-                            return ret
-                except Exception:
-                    with redirect_stdout(io_buffer):
-                        exec(module_end_str, self.globals, self.locals)
-                    return io_buffer.getvalue()
-        except Exception as e:
-            return "{}: {}".format(type(e).__name__, str(e))
+        with change_cwd(self.working_directory):
+            query = sanitize_input(query)
+            tree = ast.parse(query)
+            module = ast.Module(tree.body[:-1], type_ignores=[])
+            exec(ast.unparse(module), self.globals, self.locals)  # type: ignore
+            module_end = ast.Module(tree.body[-1:], type_ignores=[])
+            module_end_str = ast.unparse(module_end)  # type: ignore
+            io_buffer = StringIO()
+            try:
+                with redirect_stdout(io_buffer):
+                    ret = eval(module_end_str, self.globals, self.locals)
+                    if ret is None:
+                        return io_buffer.getvalue()
+                    else:
+                        return ret
+            except Exception:
+                with redirect_stdout(io_buffer):
+                    exec(module_end_str, self.globals, self.locals)
+                return io_buffer.getvalue()
 
 
 def sanitize_input(query: str) -> str:
@@ -139,7 +136,7 @@ async def run_python_code(
         activities.append(activty)
 
     return AbilityResult(
-        ability_name="read_webpage",
+        ability_name="run_python_code",
         ability_args={"query": query, "project_root_path": project_root_path},
         success=True,
         message=output,
