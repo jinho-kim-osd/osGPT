@@ -43,6 +43,7 @@ async def change_assignee(
     new_assignee_name = new_assignee
     new_assignee = project.get_member(new_assignee_name).user
     old_assignee = issue.assignee
+    issue.assignee = new_assignee
 
     activity = AssignmentChangeActivity(
         old_assignee=old_assignee, new_assignee=new_assignee, created_by=agent

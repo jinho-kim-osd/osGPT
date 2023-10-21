@@ -149,7 +149,7 @@ class AgentUser(User, Agent):
         messages: List[Dict[str, Any]] = [],
         functions: Optional[Dict[str, Any]] = None,
         force_function: bool = False,
-        max_chained_calls: int = 3,
+        max_chained_calls: int = 7,
     ) -> List[Activity]:
         activities = []
         is_activity_type = False
@@ -164,7 +164,7 @@ class AgentUser(User, Agent):
 
             message = await get_openai_response(messages, functions=functions)
             content = message.get("content", "")
-
+            print(messages)
             if "function_call" in message:
                 fn_name = message["function_call"]["name"]
                 fn_args = json.loads(message["function_call"]["arguments"])
@@ -200,24 +200,34 @@ class AgentUser(User, Agent):
                         "content": fn_response.summary(),
                     }
                 )
-                messages.append(
-                    {
-                        "role": "user",
-                        "content": project.display(),
-                    }
-                )
-            elif not content and force_function:
-                logger.error(
-                    f"[{project.key}-{issue.id}] > Invalid Response: {str(message)}"
-                )
-                messages.append({"role": "user", "content": "Use functions only."})
+
+                # messages.append(
+                #     {
+                #         "role": "user",
+                #         "content": "Comment on the results derived from the function execution.",
+                #     }
+                # )
             elif not content:
                 break
+            elif content["message"]:
+                if force_function:
+                    logger.error(
+                        f"[{project.key}-{issue.id}] > Invalid Response: {str(message)}"
+                    )
+                    messages.append({"role": "user", "content": "Use functions only."})
+                else:
+                    messages.append(
+                        {
+                            "role": "assistant",
+                            "name": fn_name,
+                            "content": content["message"],
+                        }
+                    )
             else:
                 raise NotImplementedError
 
             print(project.display())
-            messages.append({"role": "user", "content": project.display()})
+            # messages.append({"role": "user", "content": project.display()})
 
         if stack >= max_chained_calls:
             logger.info(

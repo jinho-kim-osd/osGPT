@@ -74,6 +74,7 @@ class ProjectManagerAgentUser(AgentUser):
                 "list_files",
                 "add_comment",
             ],
+            force_function=False,
         )
 
     async def decide_reopen(
