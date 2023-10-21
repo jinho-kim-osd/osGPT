@@ -13,19 +13,28 @@ logger = ForgeLogger(__name__)
     description="List files in a workspace",
     parameters=[
         {
-            "name": "path",
-            "description": "Path to the workspace",
+            "name": "dir_path",
+            "description": "Relative directory path to list files.",
             "type": "string",
             "required": True,
         }
     ],
-    output_type="list[str]",
+    output_type="object",
 )
-async def list_files(agent, project: Project, issue: Issue, path: str) -> List[str]:
+async def list_files(
+    agent, project: Project, issue: Issue, dir_path: str
+) -> AbilityResult:
     """
     List files in a workspace directory
     """
-    return agent.workspace.list_files_by_key(key=project.key, path=path)
+    file_infos = agent.workspace.list_files_by_key(key=project.key, path=dir_path)
+    file_names = [info["filename"] for info in file_infos]
+    return AbilityResult(
+        ability_name="list_files",
+        ability_args={"dir_path": dir_path},
+        message=str(file_names),
+        success=True,
+    )
 
 
 @ability(
@@ -60,7 +69,7 @@ async def write_file(
         key=project.key, path=file_path, data=data
     )
     attachment = Attachment(
-        url=file_info["url"],
+        url=file_info["relative_url"],
         filename=file_info["filename"],
         filesize=file_info["filesize"],
     )

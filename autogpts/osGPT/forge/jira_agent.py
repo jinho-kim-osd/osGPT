@@ -1,5 +1,5 @@
 import os
-from typing import Optional, List, Tuple, Any
+from typing import Optional
 from forge.sdk import (
     Agent,
     Step,
@@ -101,19 +101,18 @@ class JiraAgent(Agent):
         activity = IssueCreationActivity(created_by=user_proxy)
         issue.add_activity(activity)
 
-        files_and_dirs = self.workspace.list_files_by_key(project.key)
-        for file in files_and_dirs:
-            if file.is_file():
-                attachment = Attachment(
-                    filename=file.name,
-                    filesize=file.stat().st_size,
-                    url=str(file.absolute()),
-                )
-                activty = AttachmentUploadActivity(
-                    created_by=user_proxy, attachment=attachment
-                )
-                issue.add_attachment(attachment)
-                issue.add_activity(activty)
+        file_infos = self.workspace.list_files_by_key(project.key)
+        for file_info in file_infos:
+            attachment = Attachment(
+                url=file_info["relative_url"],
+                filename=file_info["filename"],
+                filesize=file_info["filesize"],
+            )
+            activty = AttachmentUploadActivity(
+                created_by=user_proxy, attachment=attachment
+            )
+            issue.add_attachment(attachment)
+            issue.add_activity(activty)
 
     async def execute_step(self, task_id: str, step_request: StepRequestBody) -> Step:
         """Execute a task step and update its status and output."""

@@ -1,5 +1,6 @@
 from __future__ import annotations
 from pathlib import Path
+from datetime import datetime
 from typing import List, Dict, Optional
 
 from pydantic import BaseModel, Field
@@ -49,7 +50,9 @@ class Workspace(BaseModel):
         with open(full_path, "rb") as file:
             return file.read()
 
-    def list_files_by_key(self, key: str, path: Optional[str] = None) -> List[Path]:
+    def list_files_by_key(
+        self, key: str, path: Optional[str] = None
+    ) -> List[Dict[str, str]]:
         """List all files and directories in the specified project path using its registered key."""
         project_root = self.get_project_path_by_key(key)
         if not project_root:
@@ -59,7 +62,28 @@ class Workspace(BaseModel):
         if not target_path.exists():
             raise ValueError(f"Path {target_path} does not exist!")
 
-        return list(target_path.iterdir())
+        files_info = []
+        for item in target_path.iterdir():
+            relative_path = self.get_relative_path_by_key(key, item)
+            updated_at = datetime.fromtimestamp(item.stat().st_mtime)
+            files_info.append(
+                {
+                    "absolute_url": str(item),
+                    "relative_url": relative_path,
+                    "filename": item.name,
+                    "filesize": item.stat().st_size,
+                    "updated_at": updated_at,
+                }
+            )
+
+        return files_info
+
+    def get_relative_path_by_key(self, key: str, absolute_path: Path) -> str:
+        """Get the relative path of a file within the project directory identified by the key."""
+        project_root = self.get_project_path_by_key(key)
+        if not project_root:
+            raise ValueError(f"No registered path for key {key}!")
+        return str(absolute_path.relative_to(project_root))
 
     def write_file_by_key(self, key: str, path: str, data: bytes) -> dict:
         """Write data to a specific project path using its registered key and return the file info."""
@@ -71,10 +95,14 @@ class Workspace(BaseModel):
         with open(full_path, "wb") as file:
             file.write(data)
 
+        relative_path = self.get_relative_path_by_key(key, full_path)
+        updated_at = datetime.fromtimestamp(full_path.stat().st_mtime)
         file_info = {
-            "url": str(full_path),
+            "absolute_url": str(full_path),
+            "relative_url": relative_path,
             "filename": full_path.name,
             "filesize": full_path.stat().st_size,
+            "updated_at": updated_at,
         }
 
         return file_info

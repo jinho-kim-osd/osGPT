@@ -226,6 +226,9 @@ class Issue(BaseModel):
     def add_attachment(self, attachment: Attachment):
         self.attachments.append(attachment)
 
+    def remove_attachment(self, attachment: Attachment):
+        self.attachments.remove(attachment)
+
     def add_link(self, link_type: IssueLinkType, target_issue: Issue):
         link = IssueLink(type=link_type, source_issue=self, target_issue=target_issue)
         self.links.append(link)

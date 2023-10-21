@@ -52,7 +52,6 @@ class ProjectManagerAgentUser(AgentUser):
             [
                 "change_assignee",
                 "change_issue_status",
-                "read_file",
                 "add_comment",
                 "finish_work",
             ],

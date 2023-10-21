@@ -115,27 +115,51 @@ async def run_python_code(
     )
 
     # TODO: find better approach
-    before_files = set(agent.workspace.list_files_by_key(project.key))
+    before_file_infos = agent.workspace.list_files_by_key(project.key)
     output = python_repl.run(query)
-    after_files = set(agent.workspace.list_files_by_key(project.key))
-    new_files = after_files - before_files
+    after_file_infos = agent.workspace.list_files_by_key(project.key)
+
+    new_or_modified_files = []
+    for after_file_info in after_file_infos:
+        is_new = True
+        for before_file_info in before_file_infos:
+            if before_file_info["filename"] == after_file_info["filename"]:
+                is_new = False
+                if (
+                    before_file_info["updated_at"] != after_file_info["updated_at"]
+                    or before_file_info["filesize"] != after_file_info["filesize"]
+                ):
+                    new_or_modified_files.append(
+                        {"file_info": after_file_info, "status": "modified"}
+                    )
+                break
+        if is_new:
+            new_or_modified_files.append(
+                {"file_info": after_file_info, "status": "new"}
+            )
 
     activities = []
     attachments = []
-    for file in new_files:
-        if file.is_file():
-            attachment = Attachment(
-                filename=file.name,
-                filesize=file.stat().st_size,
-                url=str(file.absolute()),
-            )
+    for file in new_or_modified_files:
+        file_info = file["file_info"]
+        new_attachment = Attachment(
+            url=file_info["relative_url"],
+            filename=file_info["filename"],
+            filesize=file_info["filesize"],
+        )
 
-            activty = AttachmentUploadActivity(created_by=agent, attachment=attachment)
-            issue.add_attachment(attachment)
-            issue.add_activity(activty)
+        if file["status"] == "modified":
+            for old_attachment in issue.attachments:
+                if old_attachment.filename == new_attachment.filename:
+                    issue.remove_attachment(old_attachment)
+                    break
 
-            attachments.append(attachment)
-            activities.append(activty)
+        activty = AttachmentUploadActivity(created_by=agent, attachment=new_attachment)
+        issue.add_attachment(new_attachment)
+        issue.add_activity(activty)
+
+        attachments.append(new_attachment)
+        activities.append(activty)
 
     return AbilityResult(
         ability_name="run_python_code",
