@@ -9,17 +9,20 @@ from ..coding.execute import sanitize_input, PythonAstREPLTool
 
 @ability(
     name="read_csv",
-    description="Read data from a CSV file.",
+    description=(
+        "Read a specified number of rows from a CSV file and return them as a string. "
+        "Useful for quickly inspecting the structure and content of the file. "
+    ),
     parameters=[
         {
             "name": "file_path",
-            "description": "Path to the CSV file to read data from",
+            "description": "The relative path to the CSV file.",
             "type": "string",
             "required": True,
         },
         {
             "name": "separator",
-            "description": "The separator used in the CSV file. Default is comma ','.",
+            "description": "Separator character used in the CSV. Defaults to ','.",
             "type": "string",
             "required": False,
             "default": ",",
@@ -57,14 +60,13 @@ async def read_csv(
 @ability(
     name="detect_csv_separator",
     description=(
-        "Detect the separator used in a given CSV file. This tool identifies whether "
-        "a comma ',' or a tab '\\t' is used as the separator in the CSV file. "
-        "Provide the path to the CSV file as input."
+        "Identifies the separator in a CSV file, supporting both commas and tabs. "
+        "If detection fails, it provides the initial lines of the file for manual inspection."
     ),
     parameters=[
         {
             "name": "file_path",
-            "description": "Relative path to the CSV file",
+            "description": "The relative path to the CSV file.",
             "type": "string",
             "required": True,
         },
@@ -104,7 +106,7 @@ async def detect_csv_separator(
         message = (
             f"Unable to detect the separator used in the file. "
             f"Please review the CSV file to ensure it is formatted correctly. "
-            f"Here are the first lines for reference:\n{sample_lines}"
+            f"Here are the first few lines for your reference:\n{sample_lines}"
         )
         success = False
 
@@ -116,112 +118,105 @@ async def detect_csv_separator(
     )
 
 
-@ability(
-    name="csv_python_executor",
-    description=(
-        "Execute Python code for a specific CSV file using pandas. "
-        "The DataFrame is automatically initialized with 'df = pd.read_csv(<provided_file_path>, sep=<provided_sep>)'. "
-        "Simply add the necessary operations following this to perform your desired analysis or modifications on the data. "
-        "You can view the output by printing to the console, e.g., print(df['col1'].sum())."
-    ),
-    parameters=[
-        {
-            "name": "file_path",
-            "description": "Path to the CSV file to be manipulated.",
-            "type": "string",
-            "required": True,
-        },
-        {
-            "name": "separator",
-            "description": "The separator used in the CSV file. Default is comma ','.",
-            "type": "string",
-            "required": False,
-            "default": ",",
-        },
-        {
-            "name": "python_code",
-            "description": ("Python code to execute on the specified CSV file. "),
-            "type": "string",
-            "required": True,
-        },
-    ],
-    output_type="object",
-)
-async def csv_python_executor(
-    agent,
-    project: Project,
-    issue: Issue,
-    file_path: str,
-    separator: str = ",",
-    python_code: str = "",
-) -> AbilityResult:
-    """
-    Run a python code
-    """
-    project_dir = agent.workspace.get_project_path_by_key(project.key)
-    if "pd.read_csv" not in python_code:
-        python_code = (
-            f"df = pd.read_csv('{file_path}', sep='{separator}')\n{python_code}"
-        )
-    else:
-        python_code = python_code.replace("CSV_FILE_PATH", f"{project_dir}/{file_path}")
-    python_code = sanitize_input(python_code)
-    python_repl = PythonAstREPLTool(
-        _globals=globals(), _locals=None, _working_directory=str(project_dir)
-    )
+# @ability(
+#     name="csv_python_executor",
+#     description=(
+#         "Executes Python code on a CSV file using pandas DataFrame. The DataFrame is preloaded, "
+#         "allowing direct manipulation. Provide the code snippet, and get the console output and any "
+#         "created or modified files."
+#     ),
+#     parameters=[
+#         {
+#             "name": "separator",
+#             "description": "Separator character used in the CSV. Defaults to ','.",
+#             "type": "string",
+#             "required": False,
+#             "default": ",",
+#         },
+#         {
+#             "name": "python_code",
+#             "description": "Python code to manipulate the CSV data using pandas DataFrame.",
+#             "type": "string",
+#             "required": True,
+#         },
+#     ],
+#     output_type="object",
+# )
+# async def csv_python_executor(
+#     agent,
+#     project: Project,
+#     issue: Issue,
+#     file_path: str,
+#     separator: str = ",",
+#     python_code: str = "",
+# ) -> AbilityResult:
+#     """
+#     Run a python code
+#     """
+#     project_dir = agent.workspace.get_project_path_by_key(project.key)
+#     # if "pd.read_csv" not in python_code:
+#     #     python_code = (
+#     #         f"df = pd.read_csv('{file_path}', sep='{separator}')\n{python_code}"
+#     #     )
+#     # else:
+#     #     python_code = python_code.replace("CSV_FILE_PATH", f"{project_dir}/{file_path}")
+#     python_code = sanitize_input(python_code)
+#     python_repl = PythonAstREPLTool(
+#         _globals=globals(), _locals=None, _working_directory=str(project_dir)
+#     )
 
-    # TODO: find better approach
-    before_file_infos = agent.workspace.list_files_by_key(project.key)
-    output = python_repl.run(python_code)
-    after_file_infos = agent.workspace.list_files_by_key(project.key)
+#     # TODO: find better approach
+#     before_file_infos = agent.workspace.list_files_by_key(project.key)
+#     output = python_repl.run(python_code)
+#     after_file_infos = agent.workspace.list_files_by_key(project.key)
 
-    new_or_modified_files = []
-    for after_file_info in after_file_infos:
-        is_new = True
-        for before_file_info in before_file_infos:
-            if before_file_info["filename"] == after_file_info["filename"]:
-                is_new = False
-                if (
-                    before_file_info["updated_at"] != after_file_info["updated_at"]
-                    or before_file_info["filesize"] != after_file_info["filesize"]
-                ):
-                    new_or_modified_files.append(
-                        {"file_info": after_file_info, "status": "modified"}
-                    )
-                break
-        if is_new:
-            new_or_modified_files.append(
-                {"file_info": after_file_info, "status": "new"}
-            )
+#     new_or_modified_files = []
+#     for after_file_info in after_file_infos:
+#         is_new = True
+#         for before_file_info in before_file_infos:
+#             if before_file_info["filename"] == after_file_info["filename"]:
+#                 is_new = False
+#                 if (
+#                     before_file_info["updated_at"] != after_file_info["updated_at"]
+#                     or before_file_info["filesize"] != after_file_info["filesize"]
+#                 ):
+#                     new_or_modified_files.append(
+#                         {"file_info": after_file_info, "status": "modified"}
+#                     )
+#                 break
+#         if is_new:
+#             new_or_modified_files.append(
+#                 {"file_info": after_file_info, "status": "new"}
+#             )
 
-    activities = []
-    attachments = []
-    for file in new_or_modified_files:
-        file_info = file["file_info"]
-        new_attachment = Attachment(
-            url=file_info["relative_url"],
-            filename=file_info["filename"],
-            filesize=file_info["filesize"],
-        )
+#     activities = []
+#     attachments = []
+#     for file in new_or_modified_files:
+#         file_info = file["file_info"]
+#         new_attachment = Attachment(
+#             url=file_info["relative_url"],
+#             filename=file_info["filename"],
+#             filesize=file_info["filesize"],
+#         )
 
-        if file["status"] == "modified":
-            for old_attachment in issue.attachments:
-                if old_attachment.filename == new_attachment.filename:
-                    issue.remove_attachment(old_attachment)
-                    break
+#         if file["status"] == "modified":
+#             for old_attachment in issue.attachments:
+#                 if old_attachment.filename == new_attachment.filename:
+#                     issue.remove_attachment(old_attachment)
+#                     break
 
-        activty = AttachmentUploadActivity(created_by=agent, attachment=new_attachment)
-        issue.add_attachment(new_attachment)
-        issue.add_activity(activty)
+#         activty = AttachmentUploadActivity(created_by=agent, attachment=new_attachment)
+#         issue.add_attachment(new_attachment)
+#         issue.add_activity(activty)
 
-        attachments.append(new_attachment)
-        activities.append(activty)
+#         attachments.append(new_attachment)
+#         activities.append(activty)
 
-    return AbilityResult(
-        ability_name="csv_python_executor",
-        ability_args={"python_code": python_code},
-        success=True,
-        message=str(output),
-        activities=activities,
-        attachments=attachments,
-    )
+#     return AbilityResult(
+#         ability_name="csv_python_executor",
+#         ability_args={"python_code": python_code},
+#         success=True,
+#         message=str(output),
+#         activities=activities,
+#         attachments=attachments,
+#     )

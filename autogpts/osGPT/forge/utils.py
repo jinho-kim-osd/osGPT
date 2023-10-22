@@ -53,7 +53,7 @@ async def get_openai_response(
 ) -> Union[Dict[str, str], Dict[str, Dict]]:
     if functions and function_call is None:
         function_call = "auto"
-    json_data = {
+    completion_kwrags = {
         "model": "gpt-4",
         "messages": messages,
         "temperature": temperature,
@@ -63,37 +63,12 @@ async def get_openai_response(
         **kwargs,
     }
     if functions is not None:
-        json_data.update({"functions": functions})
+        completion_kwrags.update({"functions": functions})
     if function_call is not None:
-        json_data.update({"function_call": function_call})
+        completion_kwrags.update({"function_call": function_call})
 
-    # We use HTTP requests for timeout
-    # headers = {
-    #     "Content-Type": "application/json",
-    #     "Authorization": "Bearer " + openai.api_key,
-    # }
-    # try:
-    #     response = requests.post(
-    #         "https://api.openai.com/v1/chat/completions",
-    #         headers=headers,
-    #         json=json_data,
-    #         timeout=30,
-    #     )
-    #     response = response.json()
-    # except Exception as e:
-    #     print("Unable to generate ChatCompletion response")
-    #     print(f"Exception: {e}")
-    #     return e
-    # if n > 1:
-    #     res: List[str] = [""] * n
-    #     for choice in response["choices"]:
-    #         res[choice["index"]] = choice["message"]
-    #     return res
-    # return response["choices"][0]["message"]
-
-    ## NOTE: Litellm is not reliable for me
     response = await chat_completion_request(
-        **json_data,
+        **completion_kwrags,
         **kwargs,
     )
     if n > 1:

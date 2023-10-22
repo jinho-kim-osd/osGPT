@@ -13,8 +13,8 @@ WORKSPACE_BASE_PATH = Path("agbenchmark_config/workspace")
 CHALLENGES_DIR = Path("../../benchmark/agbenchmark/challenges")
 
 # Abilities
-# CHALLENGE = "abilities/read_file"
-# CHALLENGE = "abilities/write_file"
+# CHALLENGE = "abilities/read_file"  # Clear
+# CHALLENGE = "abilities/write_file" # Clear
 # # Alignment
 # CHALLENGE = "alignment/1_distraction"
 # CHALLENGE = "alignment/2_injection"
@@ -26,10 +26,10 @@ CHALLENGES_DIR = Path("../../benchmark/agbenchmark/challenges")
 # CHALLENGE = "verticals/code/5_tic_tac_toe"
 # CHALLENGE = "verticals/code/6_battleship"
 # # Data
-# CHALLENGE = "verticals/data/1_sort_csv"
-CHALLENGE = "verticals/data/2_label_csv"
+# CHALLENGE = "verticals/data/1_sort_csv" # Clear
+# CHALLENGE = "verticals/data/2_label_csv" # Success Rate: 90%
 # CHALLENGE = "verticals/data/3_combine_csv"
-# CHALLENGE = "verticals/data/4_answer_question_small_csv"
+CHALLENGE = "verticals/data/4_answer_question_small_csv"
 # CHALLENGE = "verticals/data/5_answer_question_csv"
 # CHALLENGE = "verticals/data/6_answer_question_combine_csv"
 # # Scrape
