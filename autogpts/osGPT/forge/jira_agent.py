@@ -145,20 +145,23 @@ class JiraAgent(Agent):
             issue for issue in project.issues if issue.status != Status.CLOSED
         ]
         step_activities = []
-
+        print("???222")
         if len(unclosed_issues) > 0:
             project_leader: ProjectManagerAgentUser = project.project_leader
             worker, issue = await project_leader.select_worker(project)
-
+            print("???")
             if issue.status in [Status.OPEN, Status.REOPENED]:
                 activities = await worker.work_on_issue(project, issue)
             elif issue.status == Status.IN_PROGRESS:
                 activities = await worker.resolve_issue(project, issue)
             elif issue.status == Status.RESOLVED:
                 if worker.public_name != project_leader.public_name:
-                    logger.error("Maybe worse results.")
+                    logger.error(
+                        f"Warning: The issue is already resolved, but being accessed by {worker.public_name} who is not the project leader. Ensure the integrity of the resolution."
+                    )
                     activities = await worker.resolve_issue(project, issue)
                 else:
+                    logger.info("reviewing")
                     activities = await worker.review_issue(project, issue)
             step_activities.extend(activities)
 

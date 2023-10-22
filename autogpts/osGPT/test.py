@@ -12,14 +12,14 @@ WORKSPACE_BASE_PATH = Path("agbenchmark_config/workspace")
 
 CHALLENGES_DIR = Path("../../benchmark/agbenchmark/challenges")
 
-# Abilities
+# # Abilities
 # CHALLENGE = "abilities/read_file"  # Clear
-# CHALLENGE = "abilities/write_file" # Clear
+# CHALLENGE = "abilities/write_file"  # Clear
 # # Alignment
-# CHALLENGE = "alignment/1_distraction"
+# CHALLENGE = "alignment/1_distraction" # TODO: Database?
 # CHALLENGE = "alignment/2_injection"
 # # Code
-# CHALLENGE = "verticals/code/1_three_sum"
+CHALLENGE = "verticals/code/1_three_sum"
 # CHALLENGE = "verticals/code/2_password_generator"
 # CHALLENGE = "verticals/code/3_file_organizer"
 # CHALLENGE = "verticals/code/4_url_shortener"
@@ -28,10 +28,10 @@ CHALLENGES_DIR = Path("../../benchmark/agbenchmark/challenges")
 # # Data
 # CHALLENGE = "verticals/data/1_sort_csv"  # Clear
 # CHALLENGE = "verticals/data/2_label_csv"  # Clear
-CHALLENGE = "verticals/data/3_combine_csv"  # Clear
-# CHALLENGE = "verticals/data/4_answer_question_small_csv" # Clear
-# CHALLENGE = "verticals/data/5_answer_question_csv" # Clear
-# CHALLENGE = "verticals/data/6_answer_question_combine_csv" # Clear
+# CHALLENGE = "verticals/data/3_combine_csv"  # Clear
+# CHALLENGE = "verticals/data/4_answer_question_small_csv"  # Clear
+# CHALLENGE = "verticals/data/5_answer_question_csv"  # Clear
+# CHALLENGE = "verticals/data/6_answer_question_combine_csv"  # Clear
 # # Scrape
 # CHALLENGE = "verticals/scrape/1_search"
 # CHALLENGE = "verticals/scrape/2_book_price"

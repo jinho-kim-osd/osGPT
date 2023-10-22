@@ -72,6 +72,9 @@ async def get_openai_response(
         **completion_kwrags,
         **kwargs,
     )
+    if not response or not response.choices:
+        raise ValueError("The response from OpenAI is None or empty.")
+
     if n > 1:
         res: List[str] = [""] * n
         for choice in response.choices:

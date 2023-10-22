@@ -210,13 +210,6 @@ class AgentUser(User, Agent):
                         "content": fn_response.message,
                     }
                 )
-
-                # messages.append(
-                #     {
-                #         "role": "user",
-                #         "content": "Comment on the results derived from the function execution.",
-                #     }
-                # )
             elif not content:
                 break
             elif content:
@@ -237,7 +230,6 @@ class AgentUser(User, Agent):
                 raise NotImplementedError
 
             print(project.display())
-            # messages.append({"role": "user", "content": project.display()})
 
         if stack >= max_chained_calls:
             logger.info(

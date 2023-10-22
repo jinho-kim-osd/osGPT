@@ -40,10 +40,6 @@ class ProjectManagerAgentUser(AgentUser):
         worker = member.user
         return worker, issue
 
-    async def work_on_issue(self, project: Project, issue: Issue) -> List[Activity]:
-        # TODO: clarify requirements?
-        return await super().work_on_issue(project, issue)
-
     async def resolve_issue(self, project: Project, issue: Issue) -> List[Activity]:
         return await self.execute_task_with_prompt(
             project,
@@ -74,12 +70,5 @@ class ProjectManagerAgentUser(AgentUser):
                 "list_files",
                 "add_comment",
             ],
-            force_function=False,
+            # force_function=True,
         )
-
-    async def decide_reopen(
-        self,
-        project: Project,
-        issue: Issue,
-    ) -> Dict[str, Any]:
-        raise NotImplementedError
