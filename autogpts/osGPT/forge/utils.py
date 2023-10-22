@@ -61,7 +61,7 @@ async def get_openai_response(
     presence_penalty: float = 0,
     frequency_penalty: float = 0,
     n: int = 1,
-    request_timeout: int = 20,
+    request_timeout: int = 30,
     **kwargs,
 ) -> Union[Dict[str, str], Dict[str, Dict]]:
     if functions and function_call is None:

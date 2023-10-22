@@ -8,10 +8,10 @@ from io import StringIO
 from pydantic import BaseModel, Field
 
 from forge.sdk.forge_log import ForgeLogger
-from ..registry import ability
-from ..schema import AbilityResult
-from ...utils import change_cwd
-from ...schema import Project, Issue, Attachment, AttachmentUploadActivity
+from ...registry import ability
+from ...schema import AbilityResult
+from ....utils import change_cwd
+from ....schema import Project, Issue, Attachment, AttachmentUploadActivity
 
 logger = ForgeLogger(__name__)
 

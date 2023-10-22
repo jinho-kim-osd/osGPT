@@ -1,8 +1,8 @@
 from forge.sdk.forge_log import ForgeLogger
-from ..registry import ability
-from ..schema import AbilityResult
-from ...schema import Project, Issue
-from ...agent_user import AgentUser
+from ...registry import ability
+from ...schema import AbilityResult
+from ....schema import Project, Issue
+from ....agent_user import AgentUser
 
 logger = ForgeLogger(__name__)
 

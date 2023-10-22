@@ -1,6 +1,6 @@
-from ..registry import ability
-from ..schema import AbilityResult
-from ...schema import Project, Issue, Attachment, AttachmentUploadActivity, Comment
+from ...registry import ability
+from ...schema import AbilityResult
+from ....schema import Project, Issue, Attachment, AttachmentUploadActivity, Comment
 from forge.sdk import ForgeLogger
 
 logger = ForgeLogger(__name__)
@@ -125,12 +125,12 @@ async def update_python_file(
     upload_activity = AttachmentUploadActivity(created_by=agent, attachment=new_attachment)
     issue.add_activity(upload_activity)
 
-    # comment = Comment(
-    #     created_by=agent,
-    #     content=f"I've updated the code in {file_name}.",
-    #     attachments=[attachment],
-    # )
-    # issue.add_activity(comment)
+    comment = Comment(
+        created_by=agent,
+        content=f"I've updated the code in {file_name}.",
+        attachments=[new_attachment],
+    )
+    issue.add_activity(comment)
     issue.add_attachment(new_attachment)
     
     return AbilityResult(
@@ -138,6 +138,6 @@ async def update_python_file(
         ability_args={"file_name": file_name, "content": content},
         success=True,
         message="File updated successfully.",
-        activities=[upload_activity],
+        activities=[upload_activity, comment],
         attachments=[new_attachment],
     )
