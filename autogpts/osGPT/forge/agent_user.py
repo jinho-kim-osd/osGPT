@@ -1,4 +1,5 @@
 import ast
+import json
 from typing import Optional, List, Any, Dict
 
 from forge.sdk import (
@@ -102,6 +103,31 @@ class AgentUser(User, Agent):
     ) -> Optional["AgentUser"]:
         raise NotImplementedError
 
+    async def think(
+        self, 
+        prompt_name: str, 
+        system_prompt_params: Optional[Dict] = None,
+        user_prompt_params: Optional[Dict] = None
+    ) -> Dict:
+        prompt_engine = PromptEngine(prompt_name)
+        system_prompt = prompt_engine.load_prompt(
+            template="system", 
+            **(system_prompt_params or {})
+        )
+        user_prompt = prompt_engine.load_prompt(
+            template="user", 
+            **(user_prompt_params or {})
+        )
+        messages = [
+            {
+                "role": "system",
+                "content": system_prompt,
+            },
+            {"role": "user", "content": user_prompt},
+        ]
+        message = await get_openai_response(messages)
+        return message["content"]
+    
     async def execute_task_with_prompt(
         self,
         project: Project,

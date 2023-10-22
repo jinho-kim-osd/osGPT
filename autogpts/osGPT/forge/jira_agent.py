@@ -145,11 +145,9 @@ class JiraAgent(Agent):
             issue for issue in project.issues if issue.status != Status.CLOSED
         ]
         step_activities = []
-        print("???222")
         if len(unclosed_issues) > 0:
             project_leader: ProjectManagerAgentUser = project.project_leader
             worker, issue = await project_leader.select_worker(project)
-            print("???")
             if issue.status in [Status.OPEN, Status.REOPENED]:
                 activities = await worker.work_on_issue(project, issue)
             elif issue.status == Status.IN_PROGRESS:

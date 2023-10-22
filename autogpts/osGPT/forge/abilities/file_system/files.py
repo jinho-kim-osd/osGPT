@@ -101,7 +101,7 @@ async def write_file(
     parameters=[
         {
             "name": "file_path",
-            "description": "Path to the file. Ensure to handle the file data within this ability rather than passing it directly to others.",
+            "description": "Path to the file.",
             "type": "string",
             "required": True,
         },

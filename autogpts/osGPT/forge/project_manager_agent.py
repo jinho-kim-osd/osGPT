@@ -14,24 +14,10 @@ class ProjectManagerAgentUser(AgentUser):
         self,
         project: Project,
     ) -> Tuple[AgentUser, Optional[Issue]]:
-        prompt_engine = PromptEngine("select-worker")
-        project_member = project.get_member(self.public_name)
-        system_prompt = prompt_engine.load_prompt(
-            template="system", job_title=project_member.user.job_title
-        )
-        user_prompt = prompt_engine.load_prompt(
-            template="user",
-            project=project.display(),
-        )
-        messages = [
-            {
-                "role": "system",
-                "content": system_prompt,
-            },
-            {"role": "user", "content": user_prompt},
-        ]
-        message = await get_openai_response(messages)
-        response = json.loads(message["content"])
+        thought = await self.think("select-worker", system_prompt_params={
+            "job_title": self.job_title, 
+        }, user_prompt_params={"project": project.display()})
+        response = json.loads(thought)
         logger.info(
             f"[{project.key}] {self.public_name} > Next worker: {response['next_person']} (Issue ID: {response['issue_id']})"
         )

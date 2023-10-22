@@ -1,9 +1,22 @@
 from typing import Optional, List, Any, Union, Dict
 from datetime import datetime
+from contextlib import contextmanager
 
 from forge.sdk import chat_completion_request, ForgeLogger
 
 logger = ForgeLogger(__name__)
+
+
+
+@contextmanager
+def change_cwd(path: str):
+    prev_cwd = os.getcwd()
+    os.chdir(path)
+    try:
+        yield
+    finally:
+        os.chdir(prev_cwd)
+
 
 
 def humanize_time(timestamp: datetime) -> str:

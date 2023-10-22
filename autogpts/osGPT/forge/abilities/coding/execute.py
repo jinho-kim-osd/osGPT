@@ -2,7 +2,7 @@ from typing import Dict, Optional
 import os
 import re
 import ast
-from contextlib import redirect_stdout, contextmanager
+from contextlib import redirect_stdout
 from io import StringIO
 
 from pydantic import BaseModel, Field
@@ -10,19 +10,10 @@ from pydantic import BaseModel, Field
 from forge.sdk.forge_log import ForgeLogger
 from ..registry import ability
 from ..schema import AbilityResult
+from ...utils import change_cwd
 from ...schema import Project, Issue, Attachment, AttachmentUploadActivity
 
 logger = ForgeLogger(__name__)
-
-
-@contextmanager
-def change_cwd(path: str):
-    prev_cwd = os.getcwd()
-    os.chdir(path)
-    try:
-        yield
-    finally:
-        os.chdir(prev_cwd)
 
 
 class PythonAstREPLTool(BaseModel):
