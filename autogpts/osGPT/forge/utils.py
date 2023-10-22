@@ -45,10 +45,10 @@ async def get_openai_response(
     function_call: Optional[str] = None,
     temperature: float = 0.3,
     top_p: float = 0.2,
-    # top_p: float = 0.75,
     presence_penalty: float = 0,
     frequency_penalty: float = 0,
     n: int = 1,
+    request_timeout: int = 20,
     **kwargs,
 ) -> Union[Dict[str, str], Dict[str, Dict]]:
     if functions and function_call is None:
@@ -60,6 +60,7 @@ async def get_openai_response(
         "top_p": top_p,
         "presence_penalty": presence_penalty,
         "frequency_penalty": frequency_penalty,
+        "request_timeout": request_timeout,
         **kwargs,
     }
     if functions is not None:

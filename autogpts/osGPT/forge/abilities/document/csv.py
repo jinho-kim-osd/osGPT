@@ -3,8 +3,7 @@ import json
 
 from ..registry import ability
 from ..schema import AbilityResult
-from ...schema import Project, Issue, Attachment, AttachmentUploadActivity
-from ..coding.execute import sanitize_input, PythonAstREPLTool
+from ...schema import Project, Issue
 
 
 @ability(

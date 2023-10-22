@@ -167,9 +167,6 @@ class AgentUser(User, Agent):
 
             if "function_call" in message:
                 fn_name = message["function_call"]["name"]
-                logger.info(
-                    f"[{project.key}-{issue.id if issue else 'N/A'}] > Request a function: {fn_name}({str(message['function_call']['arguments'])})"
-                )
                 try:
                     fn_args = ast.literal_eval(
                         message["function_call"]["arguments"].strip()

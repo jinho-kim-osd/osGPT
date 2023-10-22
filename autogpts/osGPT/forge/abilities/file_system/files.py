@@ -10,29 +10,39 @@ logger = ForgeLogger(__name__)
 
 @ability(
     name="list_files",
-    description="List files in a workspace",
+    description="List all files in the specified or current directory within the workspace.",
     parameters=[
         {
             "name": "dir_path",
-            "description": "Relative directory path to list files.",
+            "description": "The directory path relative to the workspace, defaults to the current directory.",
             "type": "string",
-            "required": True,
+            "required": False,
+            "default": ".",
         }
     ],
     output_type="object",
 )
 async def list_files(
-    agent, project: Project, issue: Issue, dir_path: str
+    agent, project: Project, issue: Issue, dir_path: str = "."
 ) -> AbilityResult:
     """
-    List files in a workspace directory
+    List files in the specified or current directory within the workspace.
     """
     file_infos = agent.workspace.list_files_by_key(key=project.key, path=dir_path)
     file_names = [info["filename"] for info in file_infos]
+
+    if not file_names:
+        return AbilityResult(
+            ability_name="list_files",
+            ability_args={"dir_path": dir_path},
+            message=f"No files found in the directory '{dir_path}'.",
+            success=True,
+        )
+
     return AbilityResult(
         ability_name="list_files",
         ability_args={"dir_path": dir_path},
-        message=str(file_names),
+        message=f"Files in '{dir_path}': {', '.join(file_names)}",
         success=True,
     )
 
