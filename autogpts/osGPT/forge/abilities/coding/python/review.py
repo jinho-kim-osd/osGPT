@@ -9,21 +9,22 @@ from ....agent_user import AgentUser
 logger = ForgeLogger(__name__)
 
 @ability(
-    name="review_code",
+    name="review_and_refine_code",
     description=(
-        "Review and potentially refine the specified Python file according to the project’s current status and conditions."
+        "Automatically reviews and refines the provided Python code based on the ongoing project's current context and status. "
+        "Useful for post-development phase to ensure code quality and alignment with project objectives."
     ),
     parameters=[
         {
             "name": "file_path",
-            "description": "Path of the Python file to review.",
+            "description": "Path of the Python file to be reviewed and refined as necessary.",
             "type": "string",
             "required": True,
         }
     ],
     output_type="object",
 )
-async def review_code(
+async def review_and_refine_code(
     agent: AgentUser,
     project: Project,
     issue: Issue,
@@ -36,7 +37,7 @@ async def review_code(
     """
     old_code = agent.workspace.read_by_key(key=project.key, path=file_path)
     
-    thought = await agent.think("code-review", {"job_title": agent.job_title}, {"project": project.display(), "code": old_code})
+    thought = await agent.think("review-code", {"job_title": agent.job_title}, {"project": project.display(), "code": old_code})
     parsed_output = json.loads(thought)
     
     refined_code = parsed_output.get("refined_code")
@@ -52,8 +53,10 @@ async def review_code(
             filename=file_info["filename"],
             filesize=file_info["filesize"],
         )
-
-        issue.remove_attachment(file_name)
+        for old_attachment in issue.attachments:
+            if old_attachment.filename == new_attachment.filename:
+                issue.remove_attachment(old_attachment)
+                break
         issue.add_attachment(new_attachment)
         upload_activity = AttachmentUploadActivity(created_by=agent, attachment=new_attachment)
         issue.add_activity(upload_activity)
@@ -73,7 +76,7 @@ async def review_code(
     
 
     return AbilityResult(
-        ability_name="review_code",
+        ability_name="review_and_refine_code",
         ability_args={"file_path": file_path},
         success=True,
         message=thought if refined_code else "No code update was necessary.",

@@ -63,13 +63,14 @@ class IssueLinkType(str, Enum):
 class ActivityType(str, Enum):
     COMMENT = "Comment"
     ATTACHMENT_UPLOAD = "Attachment Upload"
+    ATTACHMENT_UPDATE = "Attachment Update"
     ASSIGNMENT_CHANGE = "Assignment Change"
     STATUS_CHANGE = "Status Change"
     ISSUE_CREATION = "Issue Creation"
     ISSUE_DELETION = "Issue Deletion"
     ISSUE_LINK_CREATION = "Issue Link Creation"
     ISSUE_LINK_DELETION = "Issue Link Deletion"
-
+    
 
 class Activity(BaseModel):
     type: ActivityType
@@ -128,6 +129,18 @@ class AttachmentUploadActivity(Activity):
         humanized_time = humanize_time(self.created_at)
         return (
             f"{self.created_by.public_name} added an Attachment: '{self.attachment.filename}'. "
+            f"{humanized_time}"
+        )
+
+class AttachmentUpdateActivity(Activity):
+    type: ActivityType = ActivityType.ATTACHMENT_UPDATE
+    old_attachment: Attachment
+    new_attachment: Attachment
+
+    def __str__(self):
+        humanized_time = humanize_time(self.created_at)
+        return (
+            f"{self.created_by.public_name} updated an Attachment from '{self.old_attachment.filename}' to '{self.new_attachment.filename}'. "
             f"{humanized_time}"
         )
 

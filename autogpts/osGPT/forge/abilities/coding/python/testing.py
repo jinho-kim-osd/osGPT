@@ -1,4 +1,5 @@
 import unittest
+import importlib
 from io import StringIO
 import sys
 from ...registry import ability
@@ -35,28 +36,33 @@ async def execute_unit_tests(
     """
     project_root = agent.workspace.get_project_path_by_key(project.key)
 
-    # Automatically generate the test file name based on the source file name
-    test_file_name = f"test_{source_file_name}"
-    test_file_path = project_root / test_file_name
-
-    # Write the test file to the workspace
-    with open(test_file_path, 'w') as test_file:
-        test_file.write(test_file_content)
-
-    # Ensure the source file exists
+   # Ensure the source file exists
     source_file_path = project_root / source_file_name
     if not source_file_path.exists():
         raise FileNotFoundError(f"The source file '{source_file_name}' does not exist.")
+
+    # Automatically generate the test file name based on the source file name
+    test_file_name = f"test_{source_file_name.removesuffix('.py')}.py" 
+    test_file_path = project_root / test_file_name
+
+    # Write the test file content to the workspace
+    test_file_path.write_text(test_file_content)
+
+    # Add the test file's directory to sys.path
+    sys.path.append(str(test_file_path.parent))
+
+    # Import the test module
+    spec = importlib.util.spec_from_file_location("test_module", test_file_path)
+    test_module = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(test_module)
 
     # Redirect stdout to capture the test results
     capturedOutput = StringIO()
     sys.stdout = capturedOutput
 
     # Execute the tests
-    loader = unittest.TestLoader()
-    suite = loader.discover(start_dir=str(test_file_path.parent), pattern=test_file_name)
-    runner = unittest.TextTestRunner(stream=sys.stdout)
-    result = runner.run(suite)
+    suite = unittest.TestLoader().loadTestsFromModule(test_module)
+    result = unittest.TextTestRunner(stream=sys.stdout).run(suite)
 
     # Reset stdout to normal
     sys.stdout = sys.__stdout__

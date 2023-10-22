@@ -2,7 +2,7 @@ import json
 
 from ..registry import ability
 from ..schema import AbilityResult
-from ...schema import Project, Issue, Attachment, AttachmentUploadActivity
+from ...schema import Project, Issue, Attachment, AttachmentUploadActivity, AttachmentUpdateActivity
 from forge.sdk import ForgeLogger
 
 logger = ForgeLogger(__name__)
@@ -72,26 +72,43 @@ async def write_file(
     """
     Write data to a file
     """
+    file_infos = agent.workspace.list_files_by_key(key=project.key, path=Path(file_path).parent)
+    existing_file_info = next((info for info in file_infos if info["filename"] == Path(file_path).name), None)
+
     if isinstance(data, str):
         data = data.encode()
 
     file_info = agent.workspace.write_file_by_key(
         key=project.key, path=file_path, data=data
     )
-    attachment = Attachment(
+    new_attachment = Attachment(
         url=file_info["relative_url"],
         filename=file_info["filename"],
         filesize=file_info["filesize"],
     )
-    activty = AttachmentUploadActivity(created_by=agent, attachment=attachment)
-    issue.add_attachment(attachment)
-    issue.add_activity(activty)
+
+
+    if existing_file_info:
+        old_attachment = Attachment(
+            url=existing_file_info["relative_url"],
+            filename=existing_file_info["filename"],
+            filesize=existing_file_info["filesize"],
+        )
+        update_activity = AttachmentUpdateActivity(
+            created_by=agent, old_attachment=old_attachment, new_attachment=new_attachment
+        )
+    else:
+        update_activity = AttachmentUploadActivity(created_by=agent, attachment=new_attachment)
+
+    issue.add_attachment(new_attachment)
+    issue.add_activity(update_activity)
+    
     return AbilityResult(
         ability_name="write_file",
         ability_args={"file_path": file_path, "data": data},
         success=True,
-        activities=[activty],
-        attachments=[attachment],
+        activities=[update_activity],
+        attachments=[new_attachment],
     )
 
 
