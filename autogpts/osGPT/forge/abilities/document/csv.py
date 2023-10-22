@@ -40,7 +40,7 @@ async def read_csv(
     data = df.head(200).to_string()  # Adjust the number of rows to display here
 
     # Truncate the string if it's too long
-    max_length = 1500
+    max_length = 2000
     if len(data) > max_length:
         truncated_data = data[:max_length] + "...[abbreviated]"
     else:

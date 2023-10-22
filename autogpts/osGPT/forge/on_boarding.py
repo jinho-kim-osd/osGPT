@@ -27,7 +27,7 @@ from .schema import (
 
 def setup_workspace(db: ForgeDatabase) -> Workspace:
     workspace = Workspace(
-        name=os.getenv("DEFAULT_WORKSPACE_NAME"),
+        name=os.getenv("WORKSPACE_NAME"),
         service=LocalWorkspace(os.getenv("WORKSPACE_BASE_PATH")),
     )
     workspace.reset()
@@ -74,6 +74,7 @@ def setup_workspace(db: ForgeDatabase) -> Workspace:
         ability_names=[
             "read_file",
             "list_files",
+            "write_file",
             "create_python_file",
             "execute_python_file",
             "change_issue_status",
