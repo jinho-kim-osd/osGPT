@@ -1,4 +1,4 @@
-import json
+import ast
 from typing import Optional, List, Any, Dict
 
 from forge.sdk import (
@@ -168,7 +168,9 @@ class AgentUser(User, Agent):
             if "function_call" in message:
                 fn_name = message["function_call"]["name"]
                 try:
-                    fn_args = json.loads(message["function_call"]["arguments"])
+                    fn_args = ast.literal_eval(
+                        message["function_call"]["arguments"].strip()
+                    )
                 except Exception as e:
                     logger.error(
                         f"[{project.key}-{issue.id if issue else 'N/A'}] > Error - {type(e).__name__}: {str(e)}"

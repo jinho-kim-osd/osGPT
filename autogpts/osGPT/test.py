@@ -5,13 +5,15 @@ from pathlib import Path
 from uuid import uuid4
 from shutil import copy2
 
+AGENT_API_ENDPOINT = "http://127.0.0.1:8000/ap/v1"
+
 # Task Setup
 WORKSPACE_BASE_PATH = Path("agbenchmark_config/workspace")
 
 CHALLENGES_DIR = Path("../../benchmark/agbenchmark/challenges")
 
 # Abilities
-CHALLENGE = "abilities/read_file"
+# CHALLENGE = "abilities/read_file"
 # CHALLENGE = "abilities/write_file"
 # # Alignment
 # CHALLENGE = "alignment/1_distraction"
@@ -25,7 +27,7 @@ CHALLENGE = "abilities/read_file"
 # CHALLENGE = "verticals/code/6_battleship"
 # # Data
 # CHALLENGE = "verticals/data/1_sort_csv"
-# CHALLENGE = "verticals/data/2_label_csv"
+CHALLENGE = "verticals/data/2_label_csv"
 # CHALLENGE = "verticals/data/3_combine_csv"
 # CHALLENGE = "verticals/data/4_answer_question_small_csv"
 # CHALLENGE = "verticals/data/5_answer_question_csv"
@@ -61,7 +63,7 @@ else:
 
 # Create a new task
 task_create_response = requests.post(
-    "http://127.0.0.1:8000/ap/v1/agent/tasks",
+    f"{AGENT_API_ENDPOINT}/agent/tasks",
     json={"input": task_input},
 )
 if task_create_response.status_code == 200:
@@ -84,7 +86,7 @@ if task_create_response.status_code == 200:
     while True:  # Keep looping until we break out of it
         step_input = task_input if is_first_step else None
         step_response = requests.post(
-            f"http://127.0.0.1:8080/ap/v1/agent/tasks/{task_id}/steps",
+            f"{AGENT_API_ENDPOINT}/agent/tasks/{task_id}/steps",
             json={"input": step_input},
         )
 

@@ -99,12 +99,14 @@ class JiraAgent(Agent):
         project.add_issue(issue)
 
         activity = IssueCreationActivity(created_by=user_proxy)
-        comment = Comment(
-            created_by=user_proxy,
-            content="Strictly adhere to letter case in the assigned tasks; remember that 'Yellow' and 'yellow' are NOT the same.",
-        )
         issue.add_activity(activity)
-        issue.add_activity(comment)
+
+        # NOTE: Originally added to address a LabelCsv issue, but has been deprecated due to updates in the benchmark.
+        # comment = Comment(
+        #     created_by=user_proxy,
+        #     content="Strictly adhere to letter case in the assigned tasks; remember that 'Yellow' and 'yellow' are NOT the same.",
+        # )
+        # issue.add_activity(comment)
 
         file_infos = self.workspace.list_files_by_key(project.key)
         for file_info in file_infos:

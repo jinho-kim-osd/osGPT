@@ -84,8 +84,9 @@ async def detect_csv_separator(
     project_root = agent.workspace.get_project_path_by_key(project.key)
     full_path = project_root / file_path
     with open(full_path, "r") as file:
-        first_line = file.readline()
+        first_line = file.readline().strip()
         print(first_line)
+
         if "," in first_line:
             separator = ","
         elif "\t" in first_line:
@@ -95,7 +96,16 @@ async def detect_csv_separator(
         message = f"The separator used in the file is: {separator}"
         success = True
     else:
-        message = "Unable to detect the separator used in the file."
+        with open(full_path, "r") as file:
+            lines = [
+                line.strip() for line in file.readlines()[:5]
+            ]  # Read up to the first 5 lines if available
+        sample_lines = "\n".join(lines)
+        message = (
+            f"Unable to detect the separator used in the file. "
+            f"Please review the CSV file to ensure it is formatted correctly. "
+            f"Here are the first lines for reference:\n{sample_lines}"
+        )
         success = False
 
     return AbilityResult(
