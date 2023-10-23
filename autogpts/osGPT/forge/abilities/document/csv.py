@@ -6,7 +6,7 @@ from ..schema import AbilityResult
 from ...schema import Project, Issue
 
 
-MAX_STRING_LENGTH = 500
+MAX_STRING_LENGTH = 200
 
 
 @ability(
