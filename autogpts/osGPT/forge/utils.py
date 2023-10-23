@@ -94,7 +94,7 @@ async def invoke(
     top_p: float = 0.2,
     presence_penalty: float = 0,
     frequency_penalty: float = 0,
-    request_timeout: int = 30,
+    request_timeout: int = 45,
     **kwargs,
 ) -> Message:
     """

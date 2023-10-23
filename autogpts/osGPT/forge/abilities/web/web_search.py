@@ -29,6 +29,8 @@ DO NOT SHOW THE FULL EXTRACT; only show the FIRST 3 words and LAST 3 words.
 
 Reply only in json with the following format:
 {
+    \"query\": \"<query>\",
+    \"requirements\": \"<requirements>\",
     \"links\": [
         {
             \"url\": \"http://example.com/1\",
@@ -50,6 +52,17 @@ Reply only in json with the following format:
     ]
 }
 """
+
+USER_PROMPT = """
+# Current State of the project
+{state}
+
+# Original Query
+{query}
+
+# Search Results
+{search_results}
+""".strip()
 
 
 @ability(
@@ -99,7 +112,8 @@ async def web_search(agent: Agent, project: Project, issue: Issue, query: str) -
 
     results = json.dumps(search_results, ensure_ascii=False, indent=4)
     safe_format_results = safe_google_results(results)
-    message = await agent.think([AIMessage(content=SYSTEM_PROMPT), UserMessage(content=str(safe_format_results))])
+    user_message = USER_PROMPT.format(state=project.display(), query=query, search_results=str(safe_format_results))
+    message = await agent.think([AIMessage(content=SYSTEM_PROMPT), UserMessage(content=user_message)])
 
     return AbilityResult(
         ability_name="web_search",
