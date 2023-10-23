@@ -3,6 +3,7 @@ from ..registry import ability
 from ..schema import AbilityResult
 from ...schema import Project, Issue, Attachment
 from forge.sdk import ForgeLogger
+from ...utils import truncate_text
 
 logger = ForgeLogger(__name__)
 
@@ -90,7 +91,11 @@ async def write_file(agent, project: Project, issue: Issue, file_path: str, data
 
 @ability(
     name="read_file",
-    description="Read data from a specific file within the workspace.",
+    description=(
+        "Read data from a specific file within the workspace."
+        "When using this tool, sometimes output is abbreviated - "
+        "make sure it does not look abbreviated before using it in your answer."
+    ),
     parameters=[
         {
             "name": "file_path",
@@ -99,7 +104,7 @@ async def write_file(agent, project: Project, issue: Issue, file_path: str, data
             "required": True,
         },
     ],
-    output_type="bytes",
+    output_type="object",
 )
 async def read_file(agent, project: Project, issue: Issue, file_path: str) -> AbilityResult:
     """
@@ -117,6 +122,7 @@ async def read_file(agent, project: Project, issue: Issue, file_path: str) -> Ab
 
     if isinstance(data, bytes):
         data = data.decode("utf-8")
+        data = truncate_text(data, 1000)
     return AbilityResult(
         ability_name="read_file",
         ability_args={"file_path": file_path},

@@ -1,14 +1,10 @@
 from typing import Dict, Optional
-import os
-import re
-import ast
-from contextlib import redirect_stdout
-from io import StringIO
 import subprocess
 import hashlib
 from pathlib import Path
 
-from pydantic import BaseModel, Field
+
+from langchain_experimental.tools.python.tool import PythonAstREPLTool
 
 from forge.sdk.forge_log import ForgeLogger
 from ...registry import ability
@@ -17,61 +13,6 @@ from ....utils import change_cwd
 from ....schema import Project, Issue, Attachment
 
 logger = ForgeLogger(__name__)
-
-
-class PythonAstREPLTool(BaseModel):
-    globals: Optional[Dict] = Field(default_factory=dict, alias="_globals")
-    locals: Optional[Dict] = Field(default_factory=dict, alias="_locals")
-    working_directory: Optional[str] = Field(default=None, alias="_working_directory")
-
-    def set_working_directory(self, path: str) -> None:
-        if os.path.isdir(path):
-            self.working_directory = path
-        else:
-            print(f"Error: {path} is not a valid directory.")
-
-    def run(
-        self,
-        query: str,
-    ) -> str:
-        """Use the tool."""
-        with change_cwd(self.working_directory):
-            query = sanitize_input(query)
-            tree = ast.parse(query)
-            module = ast.Module(tree.body[:-1], type_ignores=[])
-            exec(ast.unparse(module), self.globals, self.locals)  # type: ignore
-            module_end = ast.Module(tree.body[-1:], type_ignores=[])
-            module_end_str = ast.unparse(module_end)  # type: ignore
-            io_buffer = StringIO()
-            try:
-                with redirect_stdout(io_buffer):
-                    ret = eval(module_end_str, self.globals, self.locals)
-                    if ret is None:
-                        return io_buffer.getvalue()
-                    else:
-                        return ret
-            except Exception:
-                with redirect_stdout(io_buffer):
-                    exec(module_end_str, self.globals, self.locals)
-                return io_buffer.getvalue()
-
-
-def sanitize_input(query: str) -> str:
-    """Sanitize input to the python REPL.
-    Remove whitespace, backtick & python (if llm mistakes python console as terminal)
-
-    Args:
-        query: The query to sanitize
-
-    Returns:
-        str: The sanitized query
-    """
-
-    # Removes `, whitespace & python from start
-    query = re.sub(r"^(\s|`)*(?i:python)?\s*", "", query)
-    # Removes whitespace & ` from end
-    query = re.sub(r"(\s|`)*$", "", query)
-    return query
 
 
 def calculate_checksum(file_path: Path) -> str:
@@ -122,9 +63,9 @@ async def execute_python_code(
 
     # Execute the provided Python code snippet
     try:
-        query = sanitize_input(query)
-        python_repl = PythonAstREPLTool(_globals=globals(), _locals=None, _working_directory=str(project_root))
-        sysout = python_repl.run(query)
+        with change_cwd(project_root):
+            python_repl = PythonAstREPLTool(_globals=globals(), _locals=None)
+            sysout = python_repl.run(query)
     except Exception as e:
         # Returning the error message in the AbilityResult
         return AbilityResult(

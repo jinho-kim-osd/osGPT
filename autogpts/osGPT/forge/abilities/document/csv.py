@@ -1,5 +1,4 @@
 import pandas as pd
-import json
 
 from ..registry import ability
 from ..schema import AbilityResult
