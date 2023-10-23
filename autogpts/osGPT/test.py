@@ -27,7 +27,7 @@ CHALLENGES_DIR = Path("../../benchmark/agbenchmark/challenges")
 # CHALLENGE = "verticals/code/6_battleship"
 # # Data
 # CHALLENGE = "verticals/data/1_sort_csv"  # Clear
-CHALLENGE = "verticals/data/2_label_csv"  # Clear
+# CHALLENGE = "verticals/data/2_label_csv"  # Clear
 # CHALLENGE = "verticals/data/3_combine_csv"  # Clear
 # CHALLENGE = "verticals/data/4_answer_question_small_csv"  # Clear
 # CHALLENGE = "verticals/data/5_answer_question_csv"  # Clear
@@ -36,7 +36,7 @@ CHALLENGE = "verticals/data/2_label_csv"  # Clear
 # CHALLENGE = "verticals/scrape/1_search"
 # CHALLENGE = "verticals/scrape/2_book_price"
 # CHALLENGE = "verticals/scrape/3_revenue_retrieval"
-# CHALLENGE = "verticals/scrape/4_revenue_retrieval_2"
+CHALLENGE = "verticals/scrape/4_revenue_retrieval_2"
 # CHALLENGE = "verticals/scrape/5_get_information"
 # # Synthesize
 # CHALLENGE = "verticals/synthesize/1_basic_content_gen"

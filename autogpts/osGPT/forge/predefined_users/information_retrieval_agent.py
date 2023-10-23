@@ -42,7 +42,7 @@ class InformationRetrievalAgent(Agent):
         prompt_engine = PromptEngine("resolve-issue")
         kwargs = {"job_title": self.job_title, "issue_id": issue.id, "project": project.display()}
         messages = [
-            SystemMessage(content=prompt_engine.load_prompt("system-default", **kwargs)),
+            SystemMessage(content=prompt_engine.load_prompt("system-information-retrieval", **kwargs)),
             UserMessage(content=prompt_engine.load_prompt("user-default", **kwargs)),
         ]
         return await self.execute_chained_call(project, issue, messages, None)

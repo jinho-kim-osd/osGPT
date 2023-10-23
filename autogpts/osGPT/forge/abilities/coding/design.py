@@ -44,13 +44,6 @@ async def document_system_architecture(
         filesize=file_info.filesize,
     )
 
-    # Add a comment to indicate the availability of the system architecture in the README.md file
-    # comment = Comment(
-    #     created_by=agent,
-    #     content=f"The system architecture is outlined in Markdown and is available in the 'README.md' file.",
-    #     attachments=[new_attachment],
-    # )
-    # issue.add_activity(comment)
     issue.add_attachment(new_attachment, agent)
     upload_activity = issue.get_last_activity()
 
