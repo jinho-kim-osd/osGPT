@@ -6,7 +6,7 @@ from ..schema import AbilityResult
 from ...schema import Project, Issue
 
 
-MAX_STRING_LENGTH = 200
+MAX_STRING_LENGTH = 1000
 
 
 @ability(
@@ -51,9 +51,9 @@ async def read_csv(
     df = pd.read_csv(full_path, sep=separator)
 
     # Estimate the number of rows that can be displayed within the MAX_STRING_LENGTH limit
-    sample_data = df.head(1).to_string()
-    avg_row_length = len(sample_data)
-    estimated_rows_per_page = MAX_STRING_LENGTH // avg_row_length
+    sample_data = df.head(10).to_string()
+    avg_row_length = len(sample_data) / 10
+    estimated_rows_per_page = int(MAX_STRING_LENGTH // avg_row_length)
 
     # Calculate the total number of pages
     total_rows = len(df)

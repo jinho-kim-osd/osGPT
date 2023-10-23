@@ -146,7 +146,7 @@ async def execute_python_code(
     activities = []
     attachments = []
     for file in modified_files:
-        relative_path = agent.workspace.get_relative_path_by_key(project.key, str(file))
+        relative_path = agent.workspace.get_relative_path_by_key(project.key, file)
         new_attachment = Attachment(
             url=relative_path,
             filename=file.name,
