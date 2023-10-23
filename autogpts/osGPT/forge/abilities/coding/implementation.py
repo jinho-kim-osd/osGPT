@@ -1,12 +1,6 @@
 from ..registry import ability
 from ..schema import AbilityResult
-from ...schema import (
-    Project,
-    Issue,
-    IssueType,
-    Attachment,
-    Comment,
-)
+from ...schema import Project, Issue, Attachment
 from forge.sdk import ForgeLogger
 
 logger = ForgeLogger(__name__)
@@ -14,89 +8,55 @@ logger = ForgeLogger(__name__)
 
 @ability(
     name="write_code",
-    description="Create or update a Python file with the provided content in the workspace.",
+    description=(
+        "This ability allows users to write code directly into the project's workspace. "
+        "IMPORTANT: Ensure you have read and understood the system architecture documented "
+        "in the README.md file within the project workspace before using this ability."
+    ),
     parameters=[
         {
-            "name": "file_name",
-            "description": "Name of the Python file to be created or updated.",
+            "name": "file_path",
+            "description": "The relative path where the code will be written.",
             "type": "string",
             "required": True,
         },
         {
-            "name": "content",
-            "description": "Content to be written to the Python file.",
+            "name": "code_content",
+            "description": "The content of the code to be written.",
             "type": "string",
             "required": True,
         },
     ],
     output_type="object",
 )
-async def write_code(agent, project: Project, issue: Issue, file_name: str, content: str) -> AbilityResult:
+async def write_code(agent, project: Project, issue: Issue, file_path: str, code_content: str) -> AbilityResult:
     """
-    Create or update a Python file and write the provided content to it.
-    A code review will be initiated for new files only.
+    Write code content to a specified file within the workspace.
     """
-    activities = []
 
-    project_root = agent.workspace.get_project_path_by_key(project.key)
-    file_path = project_root / file_name
+    # Convert the code content to bytes if it's a string
+    code_content = code_content.encode() if isinstance(code_content, str) else code_content
 
-    # Determine if the file already exists
-    existing_files = agent.workspace.list_files_by_key(key=project.key, path=file_path.parent)
-    existing_file = next((f for f in existing_files if f["filename"] == file_name), None)
+    # Write the code content to the specified file
+    file_info = agent.workspace.write_file_by_key(key=project.key, path=file_path, data=code_content)
 
-    # Write the content to the file
-    if isinstance(content, str):
-        content = content.encode()
-
-    file_info = agent.workspace.write_file_by_key(key=project.key, path=file_path, data=content)
-
+    # Create an attachment object to store metadata about the written file
     new_attachment = Attachment(
         url=file_info.relative_url,
         filename=file_info.filename,
         filesize=file_info.filesize,
     )
-    issue.add_attachment(new_attachment, agent)
 
-    # Determine the appropriate activity and comment based on whether the file already exists
-    if existing_file:
-        # Add a comment indicating the status of the code and if a review is being initiated
-        comment = Comment(
-            created_by=agent,
-            content=f"The file '{file_name}' has been updated.",
-            attachments=[new_attachment],
-        )
-        issue.add_activity(comment)
-
-    else:
-        development_issue = Issue(
-            id=len(project.issues) + 1,
-            summary=f"Review a '{file_name}' file for alignment with the requirements",
-            project_key=project.key,
-            reporter=agent,
-            parent_issue=issue,
-            assignee=agent,
-            type=IssueType.TASK,
-        )
-        project.add_issue(development_issue)
-        development_issue.add_attachment(new_attachment, agent)
-
-        # Add a comment indicating the status of the code and if a review is being initiated
-        comment = Comment(
-            created_by=agent,
-            content=f"New file '{file_name}' created. I'm initiating an immediate review to ensure it meets all requirements.",
-            attachments=[new_attachment],
-        )
-        development_issue.add_activity(comment)
-
+    # Attach the new file to the issue and get the activity object associated with this action
     issue.add_attachment(new_attachment, agent)
     upload_activity = issue.get_last_activity()
 
     return AbilityResult(
         ability_name="write_code",
-        ability_args={"file_name": file_name, "content": content},
+        ability_args={"file_path": file_path, "code_content": code_content},
         success=True,
-        activities=[upload_activity, comment],
+        message="Code successfully written",
+        activities=[upload_activity],
         attachments=[new_attachment],
     )
 

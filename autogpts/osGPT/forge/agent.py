@@ -1,4 +1,4 @@
-from typing import Optional, List, Any, Dict, Sequence
+from typing import Optional, List, Any, Dict, Sequence, Literal
 
 from forge.sdk import (
     Agent as AgentBase,
@@ -17,14 +17,7 @@ from .utils import invoke
 from .workspace import Workspace
 from .abilities.schema import AbilityResult
 from .abilities.registry import ForgeAbilityRegister
-from .schema import (
-    User,
-    Project,
-    Issue,
-    UserType,
-    Activity,
-    Status,
-)
+from .schema import User, Project, Issue, UserType, Activity, Status, Comment
 from .db import ForgeDatabase
 
 logger = ForgeLogger(__name__)
@@ -57,9 +50,14 @@ class Agent(User, AgentBase):
 
     async def resolve_issue(self, project: Project, issue: Issue) -> List[Activity]:
         """Resolve a given issue by executing a series of predefined actions."""
-        logger.info(f"Resolving issue {issue.id} in project {project.key}")
+        logger.info(f"Reviewing issue {issue.id} in project {project.key}")
+        prompt_engine = PromptEngine("resolve-issue")
         kwargs = {"job_title": self.job_title, "issue_id": issue.id, "project": project.display()}
-        return await self.execute_chained_call(project, issue, "resolve-issue", None, prompt_kwargs=kwargs)
+        messages = [
+            SystemMessage(content=prompt_engine.load_prompt("system-default", **kwargs)),
+            UserMessage(content=prompt_engine.load_prompt("user-default", **kwargs)),
+        ]
+        return await self.execute_chained_call(project, issue, messages, None)
 
     async def review_issue(
         self,
@@ -68,8 +66,13 @@ class Agent(User, AgentBase):
     ) -> Dict[str, Any]:
         """Review a given issue by executing a series of predefined actions."""
         logger.info(f"Reviewing issue {issue.id} in project {project.key}")
+        prompt_engine = PromptEngine("review-issue")
         kwargs = {"job_title": self.job_title, "issue_id": issue.id, "project": project.display()}
-        return await self.execute_chained_call(project, issue, "review-issue", None, prompt_kwargs=kwargs)
+        messages = [
+            SystemMessage(content=prompt_engine.load_prompt("system-default", **kwargs)),
+            UserMessage(content=prompt_engine.load_prompt("user-default", **kwargs)),
+        ]
+        return await self.execute_chained_call(project, issue, messages, None)
 
     async def think(
         self,
@@ -84,24 +87,23 @@ class Agent(User, AgentBase):
         self,
         project: Project,
         issue: Issue,
-        prompt_name: str,
+        messages: List[Message],
         ability_names: Optional[List[str]] = None,
         max_chained_calls: int = 10,
-        prompt_kwargs: Dict[str, Any] = {},
     ) -> List[Activity]:
         """Execute a series of actions defined by the given prompt name and return the resulting activities."""
-        logger.info(f"Executing chained call {prompt_name} for issue {issue.id}")
-        prompt_engine = PromptEngine(prompt_name)
-        messages = [
-            SystemMessage(content=prompt_engine.load_prompt("system", **prompt_kwargs)),
-            UserMessage(content=prompt_engine.load_prompt("user", **prompt_kwargs)),
-        ]
-
+        logger.info(f"Executing chained call for issue {issue.id}")
         functions = self.abilities.list_abilities_for_function_calling(ability_names)
         return await self._process_chained_calls(project, issue, messages, functions, max_chained_calls)
 
     async def _process_chained_calls(
-        self, project: Project, issue: Issue, messages: List[Message], functions: Dict[str, Any], max_chained_calls: int
+        self,
+        project: Project,
+        issue: Issue,
+        messages: List[Message],
+        functions: Dict[str, Any],
+        max_chained_calls: int,
+        stopping_method: Literal["comment", "activity"] = "comment",
     ) -> List[Activity]:
         """Iteratively process a series of messages and function calls, returning the accumulated activities."""
         activities = []
@@ -109,6 +111,7 @@ class Agent(User, AgentBase):
 
         while stack < max_chained_calls:
             stack += 1
+            state = project.display()
             print(stack)
             message = await self.think(messages, functions=functions)
             if message.function_call:
@@ -117,17 +120,29 @@ class Agent(User, AgentBase):
                 )
                 fn_response = await self._handle_function_call(project, issue, message.function_call)
                 logger.info(fn_response.summary())
-                if fn_response.activities:
-                    return activities + fn_response.activities
 
+                if fn_response.activities:
+                    if stopping_method == "activity":
+                        return activities + fn_response.activities
+
+                    if stopping_method == "comment" and any(
+                        isinstance(activity, Comment) for activity in fn_response.activities
+                    ):
+                        return activities + fn_response.activities
+
+                suffix = f"\n\nCurrent state of the project:\n{project.display()}" if state != project.display() else ""
                 messages.append(
                     FunctionMessage(
-                        content=fn_response.message,
+                        content=f"Function Response:\n{fn_response.summary()}" + suffix,
                         function_call=FunctionCall(
                             name=message.function_call.name, arguments=message.function_call.arguments
                         ),
                     )
                 )
+
+                if stopping_method == "comment" and fn_response.activities:
+                    activities.extend(fn_response.activities)
+
             elif not message.content:
                 logger.info("No content in the message, breaking the loop")
                 break

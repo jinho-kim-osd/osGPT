@@ -1,9 +1,11 @@
 import json
+
+from forge.sdk import ForgeLogger
+
 from ..registry import ability
 from ..schema import AbilityResult
-from ...schema import Project, Issue, Attachment
-from forge.sdk import ForgeLogger
 from ...utils import truncate_text
+from ...schema import Project, Issue, Attachment
 
 logger = ForgeLogger(__name__)
 
@@ -68,8 +70,7 @@ async def write_file(agent, project: Project, issue: Issue, file_path: str, data
     """
     Write data
     """
-    if isinstance(data, str):
-        data = data.encode()
+    data = data.encode() if isinstance(data, str) else data
 
     file_info = agent.workspace.write_file_by_key(key=project.key, path=file_path, data=data)
     new_attachment = Attachment(
@@ -112,20 +113,19 @@ async def read_file(agent, project: Project, issue: Issue, file_path: str) -> Ab
     """
     try:
         data = agent.workspace.read_by_key(key=project.key, path=file_path)
+        data = data.decode("utf-8") if isinstance(data, bytes) else data
+        data = truncate_text(data, 1000)  # Truncate text to keep the message concise
     except Exception as e:
         return AbilityResult(
             ability_name="read_file",
             ability_args={"file_path": file_path},
-            success=True,
             message=f"Error - {type(e).__name__}: {str(e)}",
+            success=False,
         )
 
-    if isinstance(data, bytes):
-        data = data.decode("utf-8")
-        data = truncate_text(data, 1000)
     return AbilityResult(
         ability_name="read_file",
         ability_args={"file_path": file_path},
-        success=True,
         message=json.dumps(data),
+        success=True,
     )

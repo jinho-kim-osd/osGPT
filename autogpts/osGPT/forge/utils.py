@@ -1,6 +1,8 @@
 import os
 import ast
 from contextlib import contextmanager
+import hashlib
+from pathlib import Path
 from typing import Optional, Sequence, Any, Dict
 from datetime import datetime
 
@@ -24,6 +26,21 @@ def change_cwd(path: str):
         yield
     finally:
         os.chdir(prev_cwd)
+
+
+def calculate_checksum(file_path: Path) -> str:
+    """
+    Calculate the SHA-256 checksum of a file.
+
+    Args:
+        file_path: Path to the file.
+
+    Returns:
+        str: The SHA-256 checksum of the file.
+    """
+    with open(file_path, "rb") as f:
+        file_hash = hashlib.sha256(f.read()).hexdigest()
+    return file_hash
 
 
 def humanize_time(timestamp: datetime) -> str:

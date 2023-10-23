@@ -1,4 +1,3 @@
-import json
 from ..registry import ability
 from ..schema import AbilityResult
 from ...schema import Project, Issue, Attachment, Comment
@@ -8,30 +7,32 @@ logger = ForgeLogger(__name__)
 
 
 @ability(
-    name="design_system_architecture",
+    name="document_system_architecture",
     description=(
-        "Before starting code development, it's mandatory to create a system architecture design and "
-        "document it in a README.md file in the workspace. This ability facilitates the documentation of the "
-        "architecture design."
+        "This ability is focused on crafting and documenting the system architecture in Markdown format. "
+        "The design is then stored in a README.md file within the project workspace to ensure that the architecture "
+        "is easily accessible and readable for all team members."
     ),
     parameters=[
         {
             "name": "architecture_content",
-            "description": "Content of the system architecture design.",
+            "description": "The Markdown content outlining the system architecture design.",
             "type": "string",
             "required": True,
         },
     ],
     output_type="object",
 )
-async def design_system_architecture(agent, project: Project, issue: Issue, architecture_content: str) -> AbilityResult:
+async def document_system_architecture(
+    agent, project: Project, issue: Issue, architecture_content: str
+) -> AbilityResult:
     """
-    Create a system architecture design and document it in a README.md file.
+    Record the system architecture design in Markdown format in the README.md file in the workspace.
     """
     project_root = agent.workspace.get_project_path_by_key(project.key)
     file_path = project_root / "README.md"
 
-    # Write the architecture content to the README.md file
+    # Ensure the architecture content is in Markdown and write it to the README.md file
     if isinstance(architecture_content, str):
         architecture_content = architecture_content.encode()
 
@@ -43,48 +44,20 @@ async def design_system_architecture(agent, project: Project, issue: Issue, arch
         filesize=file_info.filesize,
     )
 
-    # Add a comment indicating that the system architecture design is documented in the README.md file
-    comment = Comment(
-        created_by=agent,
-        content=f"System architecture design has been documented in 'README.md'.",
-        attachments=[new_attachment],
-    )
-    issue.add_activity(comment)
+    # Add a comment to indicate the availability of the system architecture in the README.md file
+    # comment = Comment(
+    #     created_by=agent,
+    #     content=f"The system architecture is outlined in Markdown and is available in the 'README.md' file.",
+    #     attachments=[new_attachment],
+    # )
+    # issue.add_activity(comment)
     issue.add_attachment(new_attachment, agent)
     upload_activity = issue.get_last_activity()
 
     return AbilityResult(
-        ability_name="design_system_architecture",
+        ability_name="document_system_architecture",
         ability_args={"architecture_content": architecture_content},
         success=True,
-        activities=[upload_activity, comment],
+        activities=[upload_activity],
         attachments=[new_attachment],
-    )
-
-
-@ability(
-    name="read_system_architecture",
-    description="Read the system architecture design from the README.md file in the workspace.",
-    parameters=[
-        {
-            "name": "file_path",
-            "description": "Path to the file.",
-            "type": "string",
-            "required": True,
-        },
-    ],
-    output_type="string",
-)
-async def read_system_architecture(agent, project: Project, issue: Issue, file_path: str) -> AbilityResult:
-    """
-    Read the system architecture design documented in the README.md file.
-    """
-    data = agent.workspace.read_by_key(key=project.key, path=file_path)
-    if isinstance(data, bytes):
-        data = data.decode("utf-8")
-    return AbilityResult(
-        ability_name="read_file",
-        ability_args={"file_path": file_path},
-        success=True,
-        message=json.dumps(data),
     )

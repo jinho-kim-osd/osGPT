@@ -35,17 +35,21 @@ class ProjectManagerAgent(Agent):
         prompt_engine = PromptEngine("select-worker")
         messages = [
             SystemMessage(
-                content=prompt_engine.load_prompt("system", job_title=self.job_title, project=project.display())
+                content=prompt_engine.load_prompt("system-default", job_title=self.job_title, project=project.display())
             ),
-            UserMessage(content=prompt_engine.load_prompt("user", job_title=self.job_title, project=project.display())),
+            UserMessage(
+                content=prompt_engine.load_prompt("user-default", job_title=self.job_title, project=project.display())
+            ),
         ]
 
         response_message = await self.think(messages)
         selected_data = json.loads(response_message.content)
 
-        issue = project.get_issue(selected_data["issue_id"])
+        try:
+            issue = project.get_issue(selected_data["issue_id"])
+        except:
+            issue = None
         member = project.get_member(selected_data["next_person"])
-
         return member.user, issue
 
     async def resolve_issue(self, project: Project, issue: Issue) -> List[Activity]:
@@ -66,28 +70,38 @@ class ProjectManagerAgent(Agent):
             "add_comment",
             "finish_work",
         ]
+        prompt_engine = PromptEngine("resolve-issue")
         kwargs = {"job_title": self.job_title, "issue_id": issue.id, "project": project.display()}
-        return await self.execute_chained_call(project, issue, "assign-member", abilities, prompt_kwargs=kwargs)
-
-    async def review_issue(self, project: Project, issue: Issue) -> List[Activity]:
-        """
-        Reviews an issue within a project.
-
-        Args:
-            project (Project): The project containing the issue.
-            issue (Issue): The issue to review.
-
-        Returns:
-            list: A list of activities performed while reviewing the issue.
-        """
-        logger.info(f"Reviewing issue {issue.id} in project {project.key}")
-        abilities = [
-            "change_assignee",
-            "change_issue_status",
-            "close_issue",
-            "read_file",
-            "list_files",
-            "add_comment",
+        messages = [
+            SystemMessage(content=prompt_engine.load_prompt("system-project-manager", **kwargs)),
+            UserMessage(content=prompt_engine.load_prompt("user-default", **kwargs)),
         ]
-        kwargs = {"job_title": self.job_title, "issue_id": issue.id, "project": project.display()}
-        return await self.execute_chained_call(project, issue, "review-issue", abilities, prompt_kwargs=kwargs)
+        return await self.execute_chained_call(project, issue, messages, abilities)
+
+    # async def review_issue(self, project: Project, issue: Issue) -> List[Activity]:
+    #     """
+    #     Reviews an issue within a project.
+
+    #     Args:
+    #         project (Project): The project containing the issue.
+    #         issue (Issue): The issue to review.
+
+    #     Returns:
+    #         list: A list of activities performed while reviewing the issue.
+    #     """
+    #     logger.info(f"Reviewing issue {issue.id} in project {project.key}")
+    #     abilities = [
+    #         "change_assignee",
+    #         "change_issue_status",
+    #         "close_issue",
+    #         "read_file",
+    #         "list_files",
+    #         "add_comment",
+    #     ]
+    #     prompt_engine = PromptEngine("resolve-issue")
+    #     kwargs = {"job_title": self.job_title, "issue_id": issue.id, "project": project.display()}
+    #     messages = [
+    #         SystemMessage(content=prompt_engine.load_prompt("system-project-manager", **kwargs)),
+    #         UserMessage(content=prompt_engine.load_prompt("user-default", **kwargs)),
+    #     ]
+    #     return await self.execute_chained_call(project, issue, messages, abilities)

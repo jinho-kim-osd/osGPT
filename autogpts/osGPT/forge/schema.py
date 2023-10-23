@@ -133,7 +133,7 @@ class AttachmentUpdateActivity(Activity):
     def __str__(self):
         humanized_time = humanize_time(self.created_at)
         return (
-            f"{self.created_by.public_name} updated an Attachment from '{self.old_attachment.filename}' to '{self.new_attachment.filename}'. "
+            f"{self.created_by.public_name} updated an Attachment: '{self.new_attachment.filename}'. "
             f"{humanized_time}"
         )
 
