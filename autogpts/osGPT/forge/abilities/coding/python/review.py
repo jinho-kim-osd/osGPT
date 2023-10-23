@@ -4,7 +4,7 @@ from forge.sdk.forge_log import ForgeLogger
 from ...registry import ability
 from ...schema import AbilityResult
 from ....schema import Project, Issue, Comment, Attachment, AttachmentUploadActivity
-from ....agent_user import AgentUser
+from ....agent import Agent
 
 logger = ForgeLogger(__name__)
 
@@ -26,7 +26,7 @@ logger = ForgeLogger(__name__)
     output_type="object",
 )
 async def review_code(
-    agent: AgentUser,
+    agent: Agent,
     project: Project,
     issue: Issue,
     file_path: str,

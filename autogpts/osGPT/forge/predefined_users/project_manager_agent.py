@@ -3,15 +3,26 @@ from typing import List, Optional, Tuple
 
 from forge.sdk import ForgeLogger, PromptEngine
 
-from ..agent_user import AgentUser
+from ..agent import Agent
 from ..message import SystemMessage, UserMessage
 from ..schema import Activity, Issue, Project
 
 logger = ForgeLogger(__name__)
 
 
-class ProjectManagerAgentUser(AgentUser):
-    async def select_worker(self, project: Project) -> Tuple[AgentUser, Optional[Issue]]:
+class ProjectManagerAgent(Agent):
+    ability_names: List[str] = [
+        "read_file",
+        "list_files",
+        "change_issue_status",
+        "close_issue",
+        "add_comment",
+        "create_issue",
+        "change_assignee",
+        "finish_work",
+    ]
+
+    async def select_worker(self, project: Project) -> Tuple[Agent, Optional[Issue]]:
         """
         Selects a worker for a given project.
 

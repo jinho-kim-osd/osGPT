@@ -19,7 +19,7 @@ from .schema import (
     Attachment,
     AttachmentUploadActivity,
 )
-from .predefined_users.project_manager_agent import ProjectManagerAgentUser
+from .predefined_users.project_manager_agent import ProjectManagerAgent
 from .db import ForgeDatabase
 from .workspace import Workspace
 
@@ -120,8 +120,8 @@ class JiraAgent(Agent):
         """
         logger.info(f"Starting to process issues for project {project.key}")
 
-        # Getting the project leader who is an instance of ProjectManagerAgentUser
-        project_leader: ProjectManagerAgentUser = project.project_leader
+        # Getting the project leader who is an instance of ProjectManagerAgent
+        project_leader: ProjectManagerAgent = project.project_leader
 
         # Project leader selects a worker for the issue
         worker, issue = await project_leader.select_worker(project)

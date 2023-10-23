@@ -1,7 +1,7 @@
 from typing import Optional, List, Any, Dict, Sequence
 
 from forge.sdk import (
-    Agent,
+    Agent as AgentBase,
     ForgeLogger,
     PromptEngine,
 )
@@ -30,7 +30,7 @@ from .db import ForgeDatabase
 logger = ForgeLogger(__name__)
 
 
-class AgentUser(User, Agent):
+class Agent(User, AgentBase):
     """
     A user type that acts both as a user and an agent, equipped with abilities and behaviors
     to interact with and modify the workspace and its contents.

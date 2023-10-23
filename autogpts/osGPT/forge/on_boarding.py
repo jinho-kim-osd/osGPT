@@ -1,10 +1,15 @@
 import os
 from forge.sdk import LocalWorkspace
-from .agent_user import AgentUser
-from .predefined_users.project_manager_agent import ProjectManagerAgentUser
 from .workspace import Workspace
 from .db import ForgeDatabase
 from .schema import Role, Transition, Status, Workflow, Project
+
+from .predefined_users import (
+    ProjectManagerAgent,
+    DataHandlingAgent,
+    InformationRetrievalAgent,
+    SoftwareDevelopmentAgent,
+)
 
 
 def setup_workspace(db: ForgeDatabase) -> Workspace:
@@ -22,76 +27,34 @@ def setup_workspace(db: ForgeDatabase) -> Workspace:
     workspace.reset()
 
     # Create project manager agent with specified abilities.
-    project_manager = ProjectManagerAgentUser(
+    project_manager = ProjectManagerAgent(
         public_name="Norman Osborn",
         job_title="Project Manager",
         workspace=workspace,
-        ability_names=[
-            "read_file",
-            "list_files",
-            "change_issue_status",
-            "close_issue",
-            "add_comment",
-            "create_issue",
-            "change_assignee",
-            "finish_work",
-        ],
         db=db,
     )
 
     # Create document specialist agent with specified abilities.
-    document_specialist = AgentUser(
+    document_specialist = DataHandlingAgent(
         public_name="Jinho Kim",
         job_title="Data Handling Expert",
         workspace=workspace,
-        ability_names=[
-            "change_issue_status",
-            "add_comment",
-            "read_file",
-            "write_file",
-            "list_files",
-            "detect_csv_separator",
-            "read_csv",
-            "run_python_code",
-            "finish_work",
-        ],
         db=db,
     )
 
     # Create software engineer agent with specified abilities.
-    engineer = AgentUser(
+    engineer = SoftwareDevelopmentAgent(
         public_name="Max Dillon",
         job_title="Software Development Specialist",
         workspace=workspace,
-        ability_names=[
-            "change_issue_status",
-            "add_comment",
-            "read_file",
-            "write_file",
-            "list_files",
-            "design_system_architecture",
-            "read_system_architecture",
-            # "write_code",
-            "finish_work",
-        ],
         db=db,
     )
 
     # Create information retrieval specialist agent with specified abilities.
-    researcher = AgentUser(
+    researcher = InformationRetrievalAgent(
         public_name="Jiyeon Lee",
         job_title="Information Retrieval Specialist",
         workspace=workspace,
-        ability_names=[
-            "read_file",
-            "write_file",
-            "list_files",
-            "change_issue_status",
-            "add_comment",
-            "web_search",
-            "read_webpage",
-            "finish_work",
-        ],
         db=db,
     )
 
