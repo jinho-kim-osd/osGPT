@@ -4,6 +4,7 @@ import re
 import ast
 from contextlib import redirect_stdout
 from io import StringIO
+import subprocess
 
 from pydantic import BaseModel, Field
 
@@ -11,7 +12,7 @@ from forge.sdk.forge_log import ForgeLogger
 from ...registry import ability
 from ...schema import AbilityResult
 from ....utils import change_cwd
-from ....schema import Project, Issue, Attachment, AttachmentUploadActivity
+from ....schema import Project, Issue, Attachment
 
 logger = ForgeLogger(__name__)
 
@@ -72,7 +73,7 @@ def sanitize_input(query: str) -> str:
 
 
 @ability(
-    name="run_python_code",
+    name="execute_python_code",
     description=(
         "Execute Python commands. Useful for manipulating existing files and data analysis. Output might be abbreviated."
     ),
@@ -86,7 +87,7 @@ def sanitize_input(query: str) -> str:
     ],
     output_type="object",
 )
-async def run_python_code(
+async def execute_python_code(
     agent,
     project: Project,
     issue: Issue,
@@ -97,13 +98,20 @@ async def run_python_code(
     """
     query = sanitize_input(query)
     project_root = agent.workspace.get_project_path_by_key(project.key)
-    python_repl = PythonAstREPLTool(
-        _globals=globals(), _locals=None, _working_directory=str(project_root)
-    )
+    python_repl = PythonAstREPLTool(_globals=globals(), _locals=None, _working_directory=str(project_root))
 
     # TODO: find better approach
     before_file_infos = agent.workspace.list_files_by_key(project.key)
-    output = python_repl.run(query)
+    try:
+        output = python_repl.run(query)
+    except Exception as e:
+        # Returning the error message in the AbilityResult
+        return AbilityResult(
+            ability_name="run_python_code",
+            ability_args={"query": query},
+            success=False,
+            message=f"Error: {str(e)}",
+        )
     after_file_infos = agent.workspace.list_files_by_key(project.key)
 
     new_or_modified_files = []
@@ -116,14 +124,10 @@ async def run_python_code(
                     before_file_info["updated_at"] != after_file_info["updated_at"]
                     or before_file_info["filesize"] != after_file_info["filesize"]
                 ):
-                    new_or_modified_files.append(
-                        {"file_info": after_file_info, "status": "modified"}
-                    )
+                    new_or_modified_files.append({"file_info": after_file_info, "status": "modified"})
                 break
         if is_new:
-            new_or_modified_files.append(
-                {"file_info": after_file_info, "status": "new"}
-            )
+            new_or_modified_files.append({"file_info": after_file_info, "status": "new"})
 
     activities = []
     attachments = []
@@ -141,18 +145,89 @@ async def run_python_code(
                     issue.remove_attachment(old_attachment)
                     break
 
-        activty = AttachmentUploadActivity(created_by=agent, attachment=new_attachment)
-        issue.add_attachment(new_attachment)
-        issue.add_activity(activty)
-
+        issue.add_attachment(new_attachment, agent)
         attachments.append(new_attachment)
-        activities.append(activty)
+        upload_activity = issue.get_last_activity()
+        activities.append(upload_activity)
 
     return AbilityResult(
-        ability_name="run_python_code",
+        ability_name="execute_python_code",
         ability_args={"query": query},
         success=True,
         message=str(output),
         activities=activities,
         attachments=attachments,
     )
+
+
+@ability(
+    name="run_python_file",
+    description=(
+        "Execute a specified Python file with given arguments. "
+        "Provide the relative file path and a string of arguments."
+    ),
+    parameters=[
+        {
+            "name": "file_path",
+            "description": "Relative path to the Python file to be executed.",
+            "type": "string",
+            "required": True,
+        },
+        {
+            "name": "arguments",
+            "description": "A string of arguments to be passed to the Python file during execution.",
+            "type": "string",
+            "required": False,
+            "default": "",
+        },
+    ],
+    output_type="object",
+)
+async def run_python_file(
+    agent,
+    project: Project,
+    issue: Issue,
+    file_path: str,
+    arguments: Optional[str] = "",
+) -> AbilityResult:
+    """
+    Execute a Python file with given arguments.
+    """
+    project_root = agent.workspace.get_project_path_by_key(project.key)
+    absolute_file_path = project_root / file_path
+
+    if not absolute_file_path.exists() or not absolute_file_path.is_file():
+        return AbilityResult(
+            ability_name="run_python_file",
+            ability_args={"file_path": file_path, "arguments": arguments},
+            success=False,
+            message=f"The file '{file_path}' does not exist or is not a valid Python file.",
+        )
+
+    # Execute the Python file with the provided arguments
+    try:
+        command = f"python {absolute_file_path} {arguments}"
+        process = subprocess.Popen(command, shell=True, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
+        stdout, stderr = process.communicate()
+
+        if process.returncode != 0:
+            return AbilityResult(
+                ability_name="run_python_file",
+                ability_args={"file_path": file_path, "arguments": arguments},
+                success=False,
+                message=stderr.decode().strip(),
+            )
+
+        return AbilityResult(
+            ability_name="run_python_file",
+            ability_args={"file_path": file_path, "arguments": arguments},
+            success=True,
+            message=stdout.decode().strip(),
+        )
+    except Exception as e:
+        return AbilityResult(
+            ability_name="run_python_file",
+            ability_args={"file_path": file_path, "arguments": arguments},
+            success=False,
+            message=str(e),
+        )

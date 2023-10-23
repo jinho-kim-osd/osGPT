@@ -1,5 +1,5 @@
 import os
-from typing import Optional
+from typing import Optional, List
 from forge.sdk import (
     Agent,
     Step,
@@ -11,19 +11,15 @@ from forge.sdk import (
 )
 from forge.sdk.abilities.registry import AbilityRegister
 from .schema import (
-    User,
     Status,
     Project,
-    Epic,
-    Issue,
     IssueType,
-    IssueLinkType,
     Comment,
+    Activity,
     Attachment,
     AttachmentUploadActivity,
-    IssueCreationActivity,
 )
-from .project_manager_agent import ProjectManagerAgentUser
+from .predefined_users.project_manager_agent import ProjectManagerAgentUser
 from .db import ForgeDatabase
 from .workspace import Workspace
 
@@ -32,10 +28,7 @@ logger = ForgeLogger(__name__)
 
 
 class JiraAgent(Agent):
-    """
-    An agent designed to emulate Jira or other project management systems, capable of being
-    replaced by or integrated with actual systems for real-world application and use.
-    """
+    """Agent emulating Jira or similar project management systems."""
 
     def __init__(
         self,
@@ -47,59 +40,31 @@ class JiraAgent(Agent):
         self.abilities = AbilityRegister(self, None)
 
     def reset(self):
-        # Remove all issues
+        """Clear all issues in each project within the workspace."""
         for project in self.workspace.projects:
             project.issues = []
 
     async def create_task(self, task_request: TaskRequestBody) -> Task:
+        """Create a task and reset the workspace."""
         self.reset()
-        task = await super().create_task(task_request)
-        return task
-
-    def create_issue(
-        self,
-        reporter: User,
-        project: Project,
-        type: IssueType,
-        summary: str,
-        description: Optional[str] = None,
-        assignee: Optional[User] = None,
-        parent_issue: Optional[Issue] = None,
-        **kwargs,
-    ) -> Issue:
-        issue = Issue(
-            id=len(project.issues) + 1,
-            summary=summary,
-            description=description,
-            type=type,
-            reporter=reporter,
-            assignee=assignee,
-            parentIssue=parent_issue,
-            **kwargs,
-        )
-        return issue
+        return await super().create_task(task_request)
 
     def get_current_project(self) -> Project:
+        """Retrieve the current project if there's only one project in the workspace."""
         if len(self.workspace.projects) == 1:
             return self.workspace.projects[0]
-        raise LookupError
+        raise LookupError("Multiple projects found")
 
-    def create_issue_from_user_request(
-        self, task_id: str, project: Project, input: str
-    ):
+    def create_issue_from_user_request(self, task_id: str, project: Project, input: str):
+        """Create and add an issue to the project from a given input."""
         self.workspace.register_project_key_path(project.key, f"./{task_id}")
         user_proxy = project.project_leader
-        issue = self.create_issue(
-            reporter=user_proxy,
-            project=project,
+        issue = project.create_issue(
             type=IssueType.TASK,
             summary=input,
+            reporter=user_proxy,
             assignee=user_proxy,
         )
-        project.add_issue(issue)
-
-        activity = IssueCreationActivity(created_by=user_proxy)
-        issue.add_activity(activity)
 
         # NOTE: Originally added to address a LabelCsv issue, but has been deprecated due to updates in the benchmark.
         # comment = Comment(
@@ -111,104 +76,91 @@ class JiraAgent(Agent):
         file_infos = self.workspace.list_files_by_key(project.key)
         for file_info in file_infos:
             attachment = Attachment(
-                url=file_info["relative_url"],
-                filename=file_info["filename"],
-                filesize=file_info["filesize"],
+                url=file_info.relative_url,
+                filename=file_info.filename,
+                filesize=file_info.filesize,
             )
-            activty = AttachmentUploadActivity(
-                created_by=user_proxy, attachment=attachment
-            )
-            issue.add_attachment(attachment)
-            issue.add_activity(activty)
+            issue.add_attachment(attachment, user_proxy)
 
     async def execute_step(self, task_id: str, step_request: StepRequestBody) -> Step:
-        """Execute a task step and update its status and output."""
-        step = await self.next_step(task_id)
-        if step is None:
-            step = await self.db.create_step(task_id=task_id, input=step_request)
-            step = await self.db.update_step(task_id, step.step_id, "running")
+        """Execute the task step, update its status and output."""
+        step = await self.next_step(task_id) or await self.db.create_step(task_id=task_id, input=step_request)
+        await self.db.update_step(task_id, step.step_id, "running")
 
-        if step_request.additional_input:
-            project_key = step_request.additional_input.get("project_key", None)
-            if project_key:
-                project = self.workspace.get_project(project_key)
-            raise ValueError
-        else:
-            project = self.get_current_project()
+        project = (
+            self.get_current_project()
+            if not step_request.additional_input
+            else self.workspace.get_project(step_request.additional_input.get("project_key"))
+        )
 
         if step_request.input:
             self.create_issue_from_user_request(task_id, project, step_request.input)
 
-        print(project.display())
-
-        unclosed_issues = [
-            issue for issue in project.issues if issue.status != Status.CLOSED
-        ]
-        step_activities = []
-        if len(unclosed_issues) > 0:
-            project_leader: ProjectManagerAgentUser = project.project_leader
-            worker, issue = await project_leader.select_worker(project)
-            if issue.status in [Status.OPEN, Status.REOPENED]:
-                activities = await worker.work_on_issue(project, issue)
-            elif issue.status == Status.IN_PROGRESS:
-                activities = await worker.resolve_issue(project, issue)
-            elif issue.status == Status.RESOLVED:
-                if worker.public_name != project_leader.public_name:
-                    logger.error(
-                        f"Warning: The issue is already resolved, but being accessed by {worker.public_name} who is not the project leader. Ensure the integrity of the resolution."
-                    )
-                    activities = await worker.resolve_issue(project, issue)
-                else:
-                    logger.info("reviewing")
-                    activities = await worker.review_issue(project, issue)
-            step_activities.extend(activities)
+        step_activities = await self.process_issues(project)
 
         for activity in step_activities:
-            if isinstance(activity, AttachmentUploadActivity):
-                await self.db.create_artifact(
-                    task_id,
-                    activity.attachment.filename,
-                    activity.attachment.url,
-                    agent_created=True,
-                    step_id=step.step_id,
-                )
-            elif isinstance(activity, Comment):
-                if activity.attachments:
-                    for attachment in activity.attachments:
-                        await self.db.create_artifact(
-                            task_id,
-                            attachment.filename,
-                            attachment.url,
-                            agent_created=True,
-                            step_id=step.step_id,
-                        )
+            await self.handle_activity(task_id, step, activity)
 
-        unclosed_issues = [
-            issue for issue in project.issues if issue.status != Status.CLOSED
-        ]
-
-        step = await self.db.update_step(
-            task_id,
-            step.step_id,
-            "completed",
-            output=project.display(),
-        )
+        unclosed_issues = [issue for issue in project.issues if issue.status != Status.CLOSED]
+        await self.db.update_step(task_id, step.step_id, "completed", output=project.display())
         step.is_last = len(unclosed_issues) == 0
         return step
 
+    async def process_issues(self, project: Project) -> List[Activity]:
+        """
+        Process issues in the project and return a list of activities.
+        Each issue in the project that is not closed will be processed according to its status.
+        The project leader selects a worker to perform actions on the issue.
+
+        Parameters:
+            project (Project): The project containing the issues to be processed.
+
+        Returns:
+            List[Activity]: A list of activities resulting from processing the issues.
+        """
+        logger.info(f"Starting to process issues for project {project.key}")
+
+        # Getting the project leader who is an instance of ProjectManagerAgentUser
+        project_leader: ProjectManagerAgentUser = project.project_leader
+
+        # Project leader selects a worker for the issue
+        worker, issue = await project_leader.select_worker(project)
+        logger.info(f"Worker {worker.public_name} selected for issue {issue.id} in project {project.key}")
+
+        # Displaying the current state of the project
+        logger.info(f"Current state of project {project.key}:\n{project.display()}")
+
+        activities = []
+        # Processing the issue based on its current status
+        if issue.status in [Status.OPEN, Status.REOPENED]:
+            logger.info(f"Issue {issue.id} is OPEN or REOPENED. Worker {worker.public_name} is starting work on it.")
+            activities = await worker.work_on_issue(project, issue)
+
+        elif issue.status == Status.IN_PROGRESS:
+            logger.info(f"Issue {issue.id} is IN PROGRESS. Worker {worker.public_name} is resolving it.")
+            activities = await worker.resolve_issue(project, issue)
+
+        elif issue.status == Status.RESOLVED:
+            logger.info(f"Issue {issue.id} is RESOLVED. Worker {worker.public_name} is reviewing it.")
+            activities = await worker.review_issue(project, issue)
+
+        else:
+            logger.warning(f"Issue {issue.id} has an unexpected status {issue.status}.")
+
+        # Displaying the updated state of the project after processing the issue
+        logger.info(f"Updated state of project {project.key} after processing issue {issue.id}:\n{project.display()}")
+
+        return activities
+
+    async def handle_activity(self, task_id: str, step: Step, activity: Activity):
+        """Handle activity, create artifact if it's an attachment or comment with attachments."""
+        if isinstance(activity, (AttachmentUploadActivity, Comment)) and activity.attachments:
+            for attachment in activity.attachments:
+                await self.db.create_artifact(
+                    task_id, attachment.filename, attachment.url, agent_created=True, step_id=step.step_id
+                )
+
     async def next_step(self, task_id: str) -> Optional[Step]:
-        steps, _ = await self.db.list_steps(
-            task_id, per_page=int(os.environ.get("MAX_STEPS_PER_PAGE", 1000))
-        )
-
-        previous_steps = []
-        pending_steps = []
-        for step in steps:
-            if step.status == StepStatus.created:
-                pending_steps.append(step)
-            elif step.status == StepStatus.completed:
-                previous_steps.append(step)
-
-        if len(pending_steps) > 0:
-            return pending_steps.pop(0)
-        return None
+        """Retrieve the next step to be executed, if any."""
+        steps, _ = await self.db.list_steps(task_id, per_page=int(os.environ.get("MAX_STEPS_PER_PAGE", 1000)))
+        return next((s for s in steps if s.status == StepStatus.created), None)

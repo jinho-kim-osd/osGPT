@@ -1,27 +1,29 @@
-import ast
-import json
-from typing import Optional, List, Any, Dict
+from typing import Optional, List, Any, Dict, Sequence
 
 from forge.sdk import (
     Agent,
     ForgeLogger,
     PromptEngine,
 )
-from .utils import get_openai_response
+from .message import (
+    Message,
+    SystemMessage,
+    UserMessage,
+    AIMessage,
+    FunctionMessage,
+    FunctionCall,
+)
+from .utils import invoke
 from .workspace import Workspace
-
 from .abilities.schema import AbilityResult
 from .abilities.registry import ForgeAbilityRegister
 from .schema import (
     User,
     Project,
     Issue,
-    IssueLinkType,
-    Comment,
     UserType,
     Activity,
     Status,
-    StatusChangeActivity,
 )
 from .db import ForgeDatabase
 
@@ -29,7 +31,11 @@ logger = ForgeLogger(__name__)
 
 
 class AgentUser(User, Agent):
-    # TODO: Implement Agentprotocol to use standalone.
+    """
+    A user type that acts both as a user and an agent, equipped with abilities and behaviors
+    to interact with and modify the workspace and its contents.
+    """
+
     db: ForgeDatabase
     type: UserType = UserType.AGENT
     workspace: Workspace
@@ -39,226 +45,107 @@ class AgentUser(User, Agent):
         arbitrary_types_allowed = True
         extra = "allow"
 
-    def __str__(self):
-        return f"AgentUser({self.name}, {self.role})"
-
     def __init__(self, **data):
         super().__init__(**data)
         self.abilities = ForgeAbilityRegister(self, self.ability_names)
 
-    async def select_issue(self, project: Project) -> Optional[Issue]:
-        for issue in project.issues:
-            if issue.assignee and issue.assignee.id == self.id:
-                # Status check
-                if issue.status not in [
-                    Status.OPEN,
-                    Status.REOPENED,
-                    Status.IN_PROGRESS,
-                ]:
-                    continue
-
-                # Link type check
-                blocked_issues = [
-                    link
-                    for link in issue.links
-                    if link.type == IssueLinkType.IS_BLOCKED_BY
-                ]
-                if blocked_issues:
-                    continue
-
-                # If the issue satisfies all the conditions, return it
-                return issue
-
-        # If no appropriate issue is found
-        return None
-
     async def work_on_issue(self, project: Project, issue: Issue) -> List[Activity]:
-        logger.info(f"[{project.key}-{issue.id}] > Work on Issue")
-        old_status = issue.status
-        issue.status = Status.IN_PROGRESS
-
-        activity = StatusChangeActivity(
-            old_status=old_status, new_status=issue.status, created_by=self
-        )
-        issue.add_activity(activity)
-
-        activities = [activity]
-        return activities
+        """Start working on a given issue and change its status to IN_PROGRESS."""
+        logger.info(f"Working on issue {issue.id} in project {project.key}")
+        issue.change_status(Status.IN_PROGRESS, self)
+        return [issue.get_last_activity()]
 
     async def resolve_issue(self, project: Project, issue: Issue) -> List[Activity]:
-        return await self.execute_task_with_prompt(
-            project, issue, "resolve-issue", None
-        )
+        """Resolve a given issue by executing a series of predefined actions."""
+        logger.info(f"Resolving issue {issue.id} in project {project.key}")
+        kwargs = {"job_title": self.job_title, "issue_id": issue.id, "project": project.display()}
+        return await self.execute_chained_call(project, issue, "resolve-issue", None, prompt_kwargs=kwargs)
 
     async def review_issue(
         self,
         project: Project,
         issue: Issue,
     ) -> Dict[str, Any]:
-        raise NotImplementedError
-
-    async def select_worker(
-        self,
-        project: Project,
-    ) -> Optional["AgentUser"]:
-        raise NotImplementedError
+        """Review a given issue by executing a series of predefined actions."""
+        logger.info(f"Reviewing issue {issue.id} in project {project.key}")
+        kwargs = {"job_title": self.job_title, "issue_id": issue.id, "project": project.display()}
+        return await self.execute_chained_call(project, issue, "review-issue", None, prompt_kwargs=kwargs)
 
     async def think(
-        self, 
-        prompt_name: str, 
-        system_prompt_params: Optional[Dict] = None,
-        user_prompt_params: Optional[Dict] = None
-    ) -> Dict:
-        prompt_engine = PromptEngine(prompt_name)
-        system_prompt = prompt_engine.load_prompt(
-            template="system", 
-            **(system_prompt_params or {})
-        )
-        user_prompt = prompt_engine.load_prompt(
-            template="user", 
-            **(user_prompt_params or {})
-        )
-        messages = [
-            {
-                "role": "system",
-                "content": system_prompt,
-            },
-            {"role": "user", "content": user_prompt},
-        ]
-        message = await get_openai_response(messages)
-        return message["content"]
-    
-    async def execute_task_with_prompt(
+        self,
+        messages: Sequence[Message],
+        functions: Optional[Dict[str, Any]] = None,
+        function_call: Optional[str] = None,
+    ) -> AIMessage:
+        """Process a sequence of messages and execute the given function call if provided."""
+        return await invoke(messages, functions, function_call)
+
+    async def execute_chained_call(
         self,
         project: Project,
         issue: Issue,
         prompt_name: str,
         ability_names: Optional[List[str]] = None,
-        force_function: bool = True,
         max_chained_calls: int = 10,
+        prompt_kwargs: Dict[str, Any] = {},
     ) -> List[Activity]:
-        activities = []
-
+        """Execute a series of actions defined by the given prompt name and return the resulting activities."""
+        logger.info(f"Executing chained call {prompt_name} for issue {issue.id}")
         prompt_engine = PromptEngine(prompt_name)
-        project_member = project.get_member(self.public_name)
-        system_prompt = prompt_engine.load_prompt(
-            template="system", job_title=project_member.user.job_title
-        )
-
-        user_prompt = prompt_engine.load_prompt(
-            template="user",
-            project=project.display(),
-            issue_id=issue.id,
-        )
         messages = [
-            {
-                "role": "system",
-                "content": system_prompt,
-            },
-            {"role": "user", "content": user_prompt},
+            SystemMessage(content=prompt_engine.load_prompt("system", **prompt_kwargs)),
+            UserMessage(content=prompt_engine.load_prompt("user", **prompt_kwargs)),
         ]
-        functions = self.abilities.list_abilities_for_function_calling(ability_names)
-        activities = await self.process_chained_calls(
-            project,
-            issue,
-            messages,
-            functions,
-            force_function=force_function,
-            max_chained_calls=max_chained_calls,
-        )
-        return activities
 
-    async def process_chained_calls(
-        self,
-        project: Project,
-        issue: Optional[Issue] = None,
-        messages: List[Dict[str, Any]] = [],
-        functions: Optional[Dict[str, Any]] = None,
-        force_function: bool = False,
-        max_chained_calls: int = 10,
+        functions = self.abilities.list_abilities_for_function_calling(ability_names)
+        return await self._process_chained_calls(project, issue, messages, functions, max_chained_calls)
+
+    async def _process_chained_calls(
+        self, project: Project, issue: Issue, messages: List[Message], functions: Dict[str, Any], max_chained_calls: int
     ) -> List[Activity]:
+        """Iteratively process a series of messages and function calls, returning the accumulated activities."""
         activities = []
-        is_activity_type = False
         stack = 0
 
-        if force_function:
-            messages.append({"role": "user", "content": "Use functions only."})
-
-        while not is_activity_type and stack < max_chained_calls:
-            logger.info(f"[{project.key}-{issue.id}] > Stack: {stack}")
+        while stack < max_chained_calls:
             stack += 1
-
-            message = await get_openai_response(messages, functions=functions)
-            content = message.get("content", "")
-
-            if "function_call" in message:
-                fn_name = message["function_call"]["name"]
-                try:
-                    fn_args = ast.literal_eval(
-                        message["function_call"]["arguments"].strip()
-                    )
-                except Exception as e:
-                    logger.error(
-                        f"[{project.key}-{issue.id if issue else 'N/A'}] > Error - {type(e).__name__}: {str(e)}"
-                    )
-                    raise ValueError(str(message["function_call"]["arguments"]))
-
-                try:
-                    logger.info(
-                        f"[{project.key}-{issue.id}] > Function request: {fn_name}({fn_args})"
-                    )
-
-                    fn_response: AbilityResult = await self.abilities.run_ability(
-                        project, issue, fn_name, **fn_args
-                    )
-                    logger.info(str(fn_response.summary()))
-
-                    if fn_response.activities:
-                        activities.extend(fn_response.activities)
-                        break
-
-                except Exception as e:
-                    logger.error(
-                        f"[{project.key}-{issue.id if issue else 'N/A'}] > Error - {type(e).__name__}: {str(e)}"
-                    )
-                    error_name = type(e).__name__
-                    fn_response = AbilityResult(
-                        ability_name=fn_name,
-                        ability_args=fn_args,
-                        message=f"Error - {error_name}: {str(e)}",
-                        success=False,
-                    )
+            message = await self.think(messages, functions=functions)
+            if message.function_call:
+                logger.info(
+                    f"Handling function call {message.function_call.name}({str(message.function_call.arguments)})"
+                )
+                fn_response = await self._handle_function_call(project, issue, message.function_call)
+                logger.info(fn_response.summary())
+                if fn_response.activities:
+                    return activities + fn_response.activities
 
                 messages.append(
-                    {
-                        "role": "function",
-                        "name": fn_name,
-                        "content": fn_response.message,
-                    }
+                    FunctionMessage(
+                        content=fn_response.message,
+                        function_call=FunctionCall(
+                            name=message.function_call.name, arguments=message.function_call.arguments
+                        ),
+                    )
                 )
-            elif not content:
+            elif not message.content:
+                logger.info("No content in the message, breaking the loop")
                 break
-            elif content:
-                if force_function:
-                    logger.error(
-                        f"[{project.key}-{issue.id}] > Invalid Response: {str(content)}"
-                    )
-                    messages.append({"role": "user", "content": "Use functions only."})
-                else:
-                    messages.append(
-                        {
-                            "role": "assistant",
-                            "name": fn_name,
-                            "content": content,
-                        }
-                    )
             else:
-                raise NotImplementedError
+                logger.info(message.content)
+                messages.append(message)
 
-            print(project.display())
-
-        if stack >= max_chained_calls:
-            logger.info(
-                f"[{project.key}-{issue.id if issue else 'N/A'}] > Reached max chained function calls: {max_chained_calls}"
-            )
         return activities
+
+    async def _handle_function_call(self, project: Project, issue: Issue, function_call: FunctionCall) -> AbilityResult:
+        """Handle a function call, execute the corresponding ability, and return the result."""
+        try:
+            logger.info(f"Executing ability {function_call.name} for issue {issue.id}")
+            return await self.abilities.run_ability(project, issue, function_call.name, **function_call.arguments)
+        except Exception as e:
+            logger.error(f"Error executing ability - {type(e).__name__}: {str(e)}")
+            return AbilityResult(
+                ability_name=function_call.name,
+                ability_args=function_call.arguments,
+                message=f"Error - {type(e).__name__}: {str(e)}",
+                success=False,
+            )

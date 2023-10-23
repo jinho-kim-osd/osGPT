@@ -40,6 +40,4 @@ if __name__ == "__main__":
     load_dotenv()
     forge.sdk.forge_log.setup_logger()
 
-    uvicorn.run(
-        "forge.app:app", host="localhost", port=port, log_level="error", reload=False
-    )
+    uvicorn.run("forge.app:app", host="localhost", port=port, log_level="error", reload=True)

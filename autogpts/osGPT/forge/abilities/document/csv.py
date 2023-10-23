@@ -29,9 +29,7 @@ from ...schema import Project, Issue
     ],
     output_type="string",
 )
-async def read_csv(
-    agent, project: Project, issue: Issue, file_path: str, separator: str = ","
-) -> AbilityResult:
+async def read_csv(agent, project: Project, issue: Issue, file_path: str, separator: str = ",") -> AbilityResult:
     """
     Read data from a CSV file
     """
@@ -98,9 +96,7 @@ async def detect_csv_separator(
         success = True
     else:
         with open(full_path, "r") as file:
-            lines = [
-                line.strip() for line in file.readlines()[:5]
-            ]  # Read up to the first 5 lines if available
+            lines = [line.strip() for line in file.readlines()[:5]]  # Read up to the first 5 lines if available
         sample_lines = "\n".join(lines)
         message = (
             f"Unable to detect the separator used in the file. "
@@ -115,107 +111,3 @@ async def detect_csv_separator(
         success=success,
         message=message,
     )
-
-
-# @ability(
-#     name="csv_python_executor",
-#     description=(
-#         "Executes Python code on a CSV file using pandas DataFrame. The DataFrame is preloaded, "
-#         "allowing direct manipulation. Provide the code snippet, and get the console output and any "
-#         "created or modified files."
-#     ),
-#     parameters=[
-#         {
-#             "name": "separator",
-#             "description": "Separator character used in the CSV. Defaults to ','.",
-#             "type": "string",
-#             "required": False,
-#             "default": ",",
-#         },
-#         {
-#             "name": "python_code",
-#             "description": "Python code to manipulate the CSV data using pandas DataFrame.",
-#             "type": "string",
-#             "required": True,
-#         },
-#     ],
-#     output_type="object",
-# )
-# async def csv_python_executor(
-#     agent,
-#     project: Project,
-#     issue: Issue,
-#     file_path: str,
-#     separator: str = ",",
-#     python_code: str = "",
-# ) -> AbilityResult:
-#     """
-#     Run a python code
-#     """
-#     project_dir = agent.workspace.get_project_path_by_key(project.key)
-#     # if "pd.read_csv" not in python_code:
-#     #     python_code = (
-#     #         f"df = pd.read_csv('{file_path}', sep='{separator}')\n{python_code}"
-#     #     )
-#     # else:
-#     #     python_code = python_code.replace("CSV_FILE_PATH", f"{project_dir}/{file_path}")
-#     python_code = sanitize_input(python_code)
-#     python_repl = PythonAstREPLTool(
-#         _globals=globals(), _locals=None, _working_directory=str(project_dir)
-#     )
-
-#     # TODO: find better approach
-#     before_file_infos = agent.workspace.list_files_by_key(project.key)
-#     output = python_repl.run(python_code)
-#     after_file_infos = agent.workspace.list_files_by_key(project.key)
-
-#     new_or_modified_files = []
-#     for after_file_info in after_file_infos:
-#         is_new = True
-#         for before_file_info in before_file_infos:
-#             if before_file_info["filename"] == after_file_info["filename"]:
-#                 is_new = False
-#                 if (
-#                     before_file_info["updated_at"] != after_file_info["updated_at"]
-#                     or before_file_info["filesize"] != after_file_info["filesize"]
-#                 ):
-#                     new_or_modified_files.append(
-#                         {"file_info": after_file_info, "status": "modified"}
-#                     )
-#                 break
-#         if is_new:
-#             new_or_modified_files.append(
-#                 {"file_info": after_file_info, "status": "new"}
-#             )
-
-#     activities = []
-#     attachments = []
-#     for file in new_or_modified_files:
-#         file_info = file["file_info"]
-#         new_attachment = Attachment(
-#             url=file_info["relative_url"],
-#             filename=file_info["filename"],
-#             filesize=file_info["filesize"],
-#         )
-
-#         if file["status"] == "modified":
-#             for old_attachment in issue.attachments:
-#                 if old_attachment.filename == new_attachment.filename:
-#                     issue.remove_attachment(old_attachment)
-#                     break
-
-#         activty = AttachmentUploadActivity(created_by=agent, attachment=new_attachment)
-#         issue.add_attachment(new_attachment)
-#         issue.add_activity(activty)
-
-#         attachments.append(new_attachment)
-#         activities.append(activty)
-
-#     return AbilityResult(
-#         ability_name="csv_python_executor",
-#         ability_args={"python_code": python_code},
-#         success=True,
-#         message=str(output),
-#         activities=activities,
-#         attachments=attachments,
-#     )

@@ -8,8 +8,9 @@ from ....agent_user import AgentUser
 
 logger = ForgeLogger(__name__)
 
+
 @ability(
-    name="review_and_refine_code",
+    name="review_code",
     description=(
         "Automatically reviews and refines the provided Python code based on the ongoing project's current context and status. "
         "Useful for post-development phase to ensure code quality and alignment with project objectives."
@@ -24,22 +25,23 @@ logger = ForgeLogger(__name__)
     ],
     output_type="object",
 )
-async def review_and_refine_code(
+async def review_code(
     agent: AgentUser,
     project: Project,
     issue: Issue,
     file_path: str,
-    requirements: str
 ) -> AbilityResult:
     """
     Reviews and, if necessary, refines the specified Python file based on the current status and conditions of the project.
     Provides a comment on the actions taken or recommended next steps.
     """
     old_code = agent.workspace.read_by_key(key=project.key, path=file_path)
-    
-    thought = await agent.think("review-code", {"job_title": agent.job_title}, {"project": project.display(), "code": old_code})
+
+    thought = await agent.think(
+        "review-code", {"job_title": agent.job_title}, {"project": project.display(), "code": old_code}
+    )
     parsed_output = json.loads(thought)
-    
+
     refined_code = parsed_output.get("refined_code")
     comment = parsed_output.get("comment")
 
@@ -49,17 +51,16 @@ async def review_and_refine_code(
 
         # Log the updated file as an attachment.
         new_attachment = Attachment(
-            url=file_info["relative_url"],
-            filename=file_info["filename"],
-            filesize=file_info["filesize"],
+            url=file_info.relative_url,
+            filename=file_info.filename,
+            filesize=file_info.filesize,
         )
         for old_attachment in issue.attachments:
             if old_attachment.filename == new_attachment.filename:
                 issue.remove_attachment(old_attachment)
                 break
-        issue.add_attachment(new_attachment)
-        upload_activity = AttachmentUploadActivity(created_by=agent, attachment=new_attachment)
-        issue.add_activity(upload_activity)
+        issue.add_attachment(new_attachment, agent)
+        upload_activity = issue.get_last_activity()
     else:
         new_attachment = None
 
@@ -73,13 +74,12 @@ async def review_and_refine_code(
         attachments=[new_attachment] if new_attachment else [],
     )
     issue.add_activity(comment)
-    
 
     return AbilityResult(
-        ability_name="review_and_refine_code",
+        ability_name="review_code",
         ability_args={"file_path": file_path},
         success=True,
         message=thought if refined_code else "No code update was necessary.",
-        activities=[comment],
+        activities=[comment, upload_activity],
         attachments=[new_attachment] if new_attachment else [],
     )

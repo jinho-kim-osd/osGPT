@@ -1,37 +1,27 @@
 import os
-
 from forge.sdk import LocalWorkspace
-
 from .agent_user import AgentUser
-from .project_manager_agent import ProjectManagerAgentUser
+from .predefined_users.project_manager_agent import ProjectManagerAgentUser
 from .workspace import Workspace
 from .db import ForgeDatabase
-from .schema import (
-    Role,
-    Transition,
-    Status,
-    Workflow,
-    Project,
-    Comment,
-    Epic,
-    Issue,
-    IssueType,
-    Attachment,
-    IssueLink,
-    IssueLinkType,
-    IssueLinkCreationActivity,
-    IssueCreationActivity,
-    AttachmentUploadActivity,
-)
+from .schema import Role, Transition, Status, Workflow, Project
 
 
 def setup_workspace(db: ForgeDatabase) -> Workspace:
-    workspace = Workspace(
-        name=os.getenv("WORKSPACE_NAME"),
-        service=LocalWorkspace(os.getenv("WORKSPACE_BASE_PATH")),
-    )
+    """
+    Setup and return a workspace with predefined agents, roles, and a sample project.
+
+    Args:
+        db (ForgeDatabase): The database instance for storing workspace data.
+
+    Returns:
+        Workspace: The configured workspace.
+    """
+    # Create a workspace with a service pointing to a local directory.
+    workspace = Workspace(name=os.getenv("WORKSPACE_NAME"), service=LocalWorkspace(os.getenv("WORKSPACE_BASE_PATH")))
     workspace.reset()
 
+    # Create project manager agent with specified abilities.
     project_manager = ProjectManagerAgentUser(
         public_name="Norman Osborn",
         job_title="Project Manager",
@@ -44,12 +34,12 @@ def setup_workspace(db: ForgeDatabase) -> Workspace:
             "add_comment",
             "create_issue",
             "change_assignee",
-            # "create_issue_link",
-            # "remove_issue_link",
             "finish_work",
         ],
         db=db,
     )
+
+    # Create document specialist agent with specified abilities.
     document_specialist = AgentUser(
         public_name="Jinho Kim",
         job_title="Data Handling Expert",
@@ -68,6 +58,7 @@ def setup_workspace(db: ForgeDatabase) -> Workspace:
         db=db,
     )
 
+    # Create software engineer agent with specified abilities.
     engineer = AgentUser(
         public_name="Max Dillon",
         job_title="Software Development Specialist",
@@ -76,18 +67,17 @@ def setup_workspace(db: ForgeDatabase) -> Workspace:
             "change_issue_status",
             "add_comment",
             "read_file",
-            "list_files",
             "write_file",
-            "execute_unit_tests",
-            "write_code",
-            # "update_python_file",
-            "review_code",
-            "run_python_code",
+            "list_files",
+            "design_system_architecture",
+            "read_system_architecture",
+            # "write_code",
             "finish_work",
         ],
         db=db,
     )
 
+    # Create information retrieval specialist agent with specified abilities.
     researcher = AgentUser(
         public_name="Jiyeon Lee",
         job_title="Information Retrieval Specialist",
@@ -105,42 +95,25 @@ def setup_workspace(db: ForgeDatabase) -> Workspace:
         db=db,
     )
 
-    # Creating a Workflow with Transitions
+    # Define the workflow transitions.
     transitions = [
-        Transition(
-            name="Start Progress",
-            source_status=Status.OPEN,
-            destination_status=Status.IN_PROGRESS,
-        ),
-        Transition(
-            name="Mark Resolved",
-            source_status=Status.IN_PROGRESS,
-            destination_status=Status.RESOLVED,
-        ),
-        Transition(
-            name="Reopen",
-            source_status=Status.RESOLVED,
-            destination_status=Status.REOPENED,
-        ),
-        Transition(
-            name="Close",
-            source_status=Status.REOPENED,
-            destination_status=Status.CLOSED,
-        ),
+        Transition(name="Start Progress", source_status=Status.OPEN, destination_status=Status.IN_PROGRESS),
+        Transition(name="Mark Resolved", source_status=Status.IN_PROGRESS, destination_status=Status.RESOLVED),
+        Transition(name="Reopen", source_status=Status.RESOLVED, destination_status=Status.REOPENED),
+        Transition(name="Close", source_status=Status.REOPENED, destination_status=Status.CLOSED),
     ]
+
+    # Create a workflow with the defined transitions.
     workflow = Workflow(name="Default Workflow", transitions=transitions)
 
-    # Creating a project
-    project = Project(
-        key="AHC",
-        name="Arena Hacks Challenge 2023",
-        project_leader=project_manager,
-        workflow=workflow,
-    )
+    # Create a project and set its workflow.
+    project = Project(key="AHC", name="Arena Hacks Challenge 2023", project_leader=project_manager, workflow=workflow)
     workspace.add_project(project)
 
+    # Add members to the project with their respective roles.
     project.add_member(project_manager, Role.ADMIN)
     project.add_member(document_specialist, Role.MEMBER)
     project.add_member(engineer, Role.MEMBER)
     project.add_member(researcher, Role.MEMBER)
+
     return workspace

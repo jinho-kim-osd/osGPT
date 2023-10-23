@@ -1,6 +1,6 @@
 from typing import List, Optional
 
-from .schema import User, UserType, Project, Issue, Activity, Comment
+from ..schema import User, UserType, Project, Issue, Activity, Comment
 
 
 class HumanUser(User):
@@ -11,7 +11,13 @@ class HumanUser(User):
         project: Project,
         issue: Optional[Issue] = None,
     ) -> List[Activity]:
-        # TODO: To be replace with Web UI interaction
+        """
+        TODO: This method is currently under development and not in use.
+        It is intended to be replaced with a Web UI interaction in the future.
+        """
+
+        # Note: The below implementation is a placeholder and will be refined
+        # as the development progresses.
         user_input = input("Add Comment: ")
         comment = Comment(content=user_input, created_by=self)
         issue.add_activity(comment)

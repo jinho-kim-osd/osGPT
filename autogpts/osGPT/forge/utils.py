@@ -1,15 +1,23 @@
-from typing import Optional, List, Any, Union, Dict
-from datetime import datetime
+import os
+import ast
 from contextlib import contextmanager
+from typing import Optional, Sequence, Any, Dict
+from datetime import datetime
 
+from .message import Message, Role, FunctionCall
 from forge.sdk import chat_completion_request, ForgeLogger
 
 logger = ForgeLogger(__name__)
 
 
-
 @contextmanager
 def change_cwd(path: str):
+    """
+    A context manager to temporarily change the current working directory.
+
+    Args:
+        path (str): The path to change the current working directory to.
+    """
     prev_cwd = os.getcwd()
     os.chdir(path)
     try:
@@ -18,79 +26,109 @@ def change_cwd(path: str):
         os.chdir(prev_cwd)
 
 
-
 def humanize_time(timestamp: datetime) -> str:
+    """
+    Converts a datetime timestamp into a human-readable string.
+
+    Args:
+        timestamp (datetime): The datetime to convert.
+
+    Returns:
+        str: A human-readable string representation of the time difference from now.
+    """
     delta = datetime.now() - timestamp
 
-    if delta.total_seconds() < 60:
-        return "just now"
+    # Define time intervals and their respective messages
+    intervals = [
+        (60, "just now"),
+        (3600, "{:.0f} minute(s) ago"),
+        (86400, "{:.0f} hour(s) ago"),
+    ]
 
-    if delta.total_seconds() < 3600:
-        minutes = delta.total_seconds() // 60
-        return f"{int(minutes)} minute(s) ago"
+    # Find and return the appropriate message based on the time delta
+    seconds = delta.total_seconds()
+    for interval, message in intervals:
+        if seconds < interval:
+            return message.format(seconds / (interval / 60))
 
-    if delta.total_seconds() < 86400:
-        hours = delta.total_seconds() // 3600
-        return f"{int(hours)} hour(s) ago"
-
-    days = delta.total_seconds() // 86400
-    return f"{int(days)} day(s) ago"
+    return f"{delta.total_seconds() // 86400:.0f} day(s) ago"
 
 
 def truncate_text(text: str, max_length=50) -> str:
-    if len(text) > max_length:
-        return text[:max_length] + "..."
-    return text
+    """
+    Truncates a string to the specified maximum length and adds an ellipsis if truncated.
+
+    Args:
+        text (str): The text to truncate.
+        max_length (int, optional): The maximum length of the truncated string. Defaults to 50.
+
+    Returns:
+        str: The truncated string with an ellipsis added if it was truncated.
+    """
+    return text[:max_length] + "..." if len(text) > max_length else text
 
 
-# TEMPORAL SOLUTION
-import openai
-import os
-from tenacity import retry, stop_after_attempt, wait_random_exponential
-
-openai.api_key = os.getenv("OPENAI_API_KEY")
-
-
-@retry(wait=wait_random_exponential(min=1, max=40), stop=stop_after_attempt(3))
-async def get_openai_response(
-    messages: List[Dict[str, Any]],
+async def invoke(
+    messages: Sequence[Message],
     functions: Optional[Dict[str, Any]] = None,
     function_call: Optional[str] = None,
+    model: str = "gpt-4",
     temperature: float = 0.3,
     top_p: float = 0.2,
     presence_penalty: float = 0,
     frequency_penalty: float = 0,
-    n: int = 1,
     request_timeout: int = 30,
     **kwargs,
-) -> Union[Dict[str, str], Dict[str, Dict]]:
-    if functions and function_call is None:
-        function_call = "auto"
-    completion_kwrags = {
-        "model": "gpt-4",
-        "messages": messages,
+) -> Message:
+    """
+    Invoke a model completion with the provided messages and parameters.
+
+    Args:
+        ... (various): Various arguments for configuring the model invocation and message.
+
+    Returns:
+        Message: The model's generated message.
+    """
+    # Convert messages to the format suitable for OpenAI API
+    openai_messages = [msg.to_openai_message() for msg in messages]
+
+    # Prepare the completion request
+    completion_args = {
+        "model": model,
+        "messages": openai_messages,
         "temperature": temperature,
         "top_p": top_p,
         "presence_penalty": presence_penalty,
         "frequency_penalty": frequency_penalty,
         "request_timeout": request_timeout,
+        "n": 1,
         **kwargs,
     }
-    if functions is not None:
-        completion_kwrags.update({"functions": functions})
-    if function_call is not None:
-        completion_kwrags.update({"function_call": function_call})
 
-    response = await chat_completion_request(
-        **completion_kwrags,
-        **kwargs,
+    # If there are functions available, add them to the request
+    if functions:
+        completion_args["functions"] = functions
+        function_call = function_call or "auto"
+
+    # If a function call is specified, add it to the request
+    if function_call:
+        completion_args["function_call"] = function_call
+
+    # Request a completion from the OpenAI API
+    response = await chat_completion_request(**completion_args)
+    openai_message = response.choices[0]["message"]
+
+    # Process the response to create a FunctionCall object if a function was called
+    if "function_call" in openai_message:
+        fn_name = openai_message["function_call"]["name"]
+        fn_args = ast.literal_eval(openai_message["function_call"]["arguments"].strip())
+        function_call = FunctionCall(name=fn_name, arguments=fn_args)
+    else:
+        function_call = None
+
+    # Return the assistant's message
+    return Message(
+        role=Role(openai_message["role"]),
+        content=openai_message["content"],
+        function_call=function_call,
     )
-    if not response or not response.choices:
-        raise ValueError("The response from OpenAI is None or empty.")
-
-    if n > 1:
-        res: List[str] = [""] * n
-        for choice in response.choices:
-            res[choice.index] = choice["message"]
-        return res
-    return response.choices[0]["message"]
