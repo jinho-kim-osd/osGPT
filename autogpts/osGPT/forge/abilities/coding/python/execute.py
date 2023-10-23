@@ -5,6 +5,8 @@ import ast
 from contextlib import redirect_stdout
 from io import StringIO
 import subprocess
+import hashlib
+from pathlib import Path
 
 from pydantic import BaseModel, Field
 
@@ -72,6 +74,21 @@ def sanitize_input(query: str) -> str:
     return query
 
 
+def calculate_checksum(file_path: Path) -> str:
+    """
+    Calculate the SHA-256 checksum of a file.
+
+    Args:
+        file_path: Path to the file.
+
+    Returns:
+        str: The SHA-256 checksum of the file.
+    """
+    with open(file_path, "rb") as f:
+        file_hash = hashlib.sha256(f.read()).hexdigest()
+    return file_hash
+
+
 @ability(
     name="execute_python_code",
     description=(
@@ -94,16 +111,20 @@ async def execute_python_code(
     query: str,
 ) -> AbilityResult:
     """
-    Run a python code
+    Execute a Python code snippet and attach modified or new files to the issue.
     """
-    query = sanitize_input(query)
     project_root = agent.workspace.get_project_path_by_key(project.key)
-    python_repl = PythonAstREPLTool(_globals=globals(), _locals=None, _working_directory=str(project_root))
 
-    # TODO: find better approach
-    before_file_infos = agent.workspace.list_files_by_key(project.key)
+    # Calculating the checksums of all files before executing the code snippet
+    before_checksums = {
+        file: calculate_checksum(project_root / file) for file in project_root.glob("**/*") if file.is_file()
+    }
+
+    # Execute the provided Python code snippet
     try:
-        output = python_repl.run(query)
+        query = sanitize_input(query)
+        python_repl = PythonAstREPLTool(_globals=globals(), _locals=None, _working_directory=str(project_root))
+        sysout = python_repl.run(query)
     except Exception as e:
         # Returning the error message in the AbilityResult
         return AbilityResult(
@@ -112,39 +133,25 @@ async def execute_python_code(
             success=False,
             message=f"Error: {str(e)}",
         )
-    after_file_infos = agent.workspace.list_files_by_key(project.key)
 
-    new_or_modified_files = []
-    for after_file_info in after_file_infos:
-        is_new = True
-        for before_file_info in before_file_infos:
-            if before_file_info["filename"] == after_file_info["filename"]:
-                is_new = False
-                if (
-                    before_file_info["updated_at"] != after_file_info["updated_at"]
-                    or before_file_info["filesize"] != after_file_info["filesize"]
-                ):
-                    new_or_modified_files.append({"file_info": after_file_info, "status": "modified"})
-                break
-        if is_new:
-            new_or_modified_files.append({"file_info": after_file_info, "status": "new"})
+    # Calculating the checksums of all files after executing the code snippet
+    after_checksums = {
+        file: calculate_checksum(project_root / file) for file in project_root.glob("**/*") if file.is_file()
+    }
 
+    # Detecting new or modified files by comparing the before and after checksums
+    modified_files = [file for file, checksum in after_checksums.items() if before_checksums.get(file) != checksum]
+
+    # Attach the modified files to the issue
     activities = []
     attachments = []
-    for file in new_or_modified_files:
-        file_info = file["file_info"]
+    for file in modified_files:
+        relative_path = agent.workspace.get_relative_path_by_key(project.key, str(file))
         new_attachment = Attachment(
-            url=file_info["relative_url"],
-            filename=file_info["filename"],
-            filesize=file_info["filesize"],
+            url=relative_path,
+            filename=file.name,
+            filesize=file.stat().st_size,
         )
-
-        if file["status"] == "modified":
-            for old_attachment in issue.attachments:
-                if old_attachment.filename == new_attachment.filename:
-                    issue.remove_attachment(old_attachment)
-                    break
-
         issue.add_attachment(new_attachment, agent)
         attachments.append(new_attachment)
         upload_activity = issue.get_last_activity()
@@ -154,7 +161,7 @@ async def execute_python_code(
         ability_name="execute_python_code",
         ability_args={"query": query},
         success=True,
-        message=str(output),
+        message=str(sysout),
         activities=activities,
         attachments=attachments,
     )

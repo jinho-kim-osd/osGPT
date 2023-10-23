@@ -105,7 +105,16 @@ async def read_file(agent, project: Project, issue: Issue, file_path: str) -> Ab
     """
     Read data from a file
     """
-    data = agent.workspace.read_by_key(key=project.key, path=file_path)
+    try:
+        data = agent.workspace.read_by_key(key=project.key, path=file_path)
+    except Exception as e:
+        return AbilityResult(
+            ability_name="read_file",
+            ability_args={"file_path": file_path},
+            success=True,
+            message=f"Error - {type(e).__name__}: {str(e)}",
+        )
+
     if isinstance(data, bytes):
         data = data.decode("utf-8")
     return AbilityResult(

@@ -109,6 +109,7 @@ class Agent(User, AgentBase):
 
         while stack < max_chained_calls:
             stack += 1
+            print(stack, [message.to_openai_message() for message in messages])
             message = await self.think(messages, functions=functions)
             if message.function_call:
                 logger.info(

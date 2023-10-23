@@ -125,30 +125,35 @@ class JiraAgent(Agent):
 
         # Project leader selects a worker for the issue
         worker, issue = await project_leader.select_worker(project)
-        logger.info(f"Worker {worker.public_name} selected for issue {issue.id} in project {project.key}")
+        if issue:
+            logger.info(f"Worker {worker.public_name} selected for issue {issue.id} in project {project.key}")
 
-        # Displaying the current state of the project
-        logger.info(f"Current state of project {project.key}:\n{project.display()}")
+            # Displaying the current state of the project
+            logger.info(f"Current state of project {project.key}:\n{project.display()}")
 
-        activities = []
-        # Processing the issue based on its current status
-        if issue.status in [Status.OPEN, Status.REOPENED]:
-            logger.info(f"Issue {issue.id} is OPEN or REOPENED. Worker {worker.public_name} is starting work on it.")
-            activities = await worker.work_on_issue(project, issue)
+            activities = []
+            # Processing the issue based on its current status
+            if issue.status in [Status.OPEN, Status.REOPENED]:
+                logger.info(
+                    f"Issue {issue.id} is OPEN or REOPENED. Worker {worker.public_name} is starting work on it."
+                )
+                activities = await worker.work_on_issue(project, issue)
 
-        elif issue.status == Status.IN_PROGRESS:
-            logger.info(f"Issue {issue.id} is IN PROGRESS. Worker {worker.public_name} is resolving it.")
-            activities = await worker.resolve_issue(project, issue)
+            elif issue.status == Status.IN_PROGRESS:
+                logger.info(f"Issue {issue.id} is IN PROGRESS. Worker {worker.public_name} is resolving it.")
+                activities = await worker.resolve_issue(project, issue)
 
-        elif issue.status == Status.RESOLVED:
-            logger.info(f"Issue {issue.id} is RESOLVED. Worker {worker.public_name} is reviewing it.")
-            activities = await worker.review_issue(project, issue)
+            elif issue.status == Status.RESOLVED:
+                logger.info(f"Issue {issue.id} is RESOLVED. Worker {worker.public_name} is reviewing it.")
+                activities = await worker.review_issue(project, issue)
 
-        else:
-            logger.warning(f"Issue {issue.id} has an unexpected status {issue.status}.")
+            else:
+                logger.warning(f"Issue {issue.id} has an unexpected status {issue.status}.")
 
-        # Displaying the updated state of the project after processing the issue
-        logger.info(f"Updated state of project {project.key} after processing issue {issue.id}:\n{project.display()}")
+            # Displaying the updated state of the project after processing the issue
+            logger.info(
+                f"Updated state of project {project.key} after processing issue {issue.id}:\n{project.display()}"
+            )
 
         return activities
 

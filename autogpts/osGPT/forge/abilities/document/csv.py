@@ -6,6 +6,9 @@ from ..schema import AbilityResult
 from ...schema import Project, Issue
 
 
+MAX_STRING_LENGTH = 500
+
+
 @ability(
     name="read_csv",
     description=(
@@ -26,10 +29,19 @@ from ...schema import Project, Issue
             "required": False,
             "default": ",",
         },
+        {
+            "name": "page",
+            "description": "The page number to display.",
+            "type": "integer",
+            "required": False,
+            "default": 1,
+        },
     ],
-    output_type="string",
+    output_type="object",
 )
-async def read_csv(agent, project: Project, issue: Issue, file_path: str, separator: str = ",") -> AbilityResult:
+async def read_csv(
+    agent, project: Project, issue: Issue, file_path: str, separator: str = ",", page: int = 1
+) -> AbilityResult:
     """
     Read data from a CSV file
     """
@@ -37,20 +49,38 @@ async def read_csv(agent, project: Project, issue: Issue, file_path: str, separa
     full_path = project_root / file_path
 
     df = pd.read_csv(full_path, sep=separator)
-    data = df.head(200).to_string()  # Adjust the number of rows to display here
 
-    # Truncate the string if it's too long
-    max_length = 2000
-    if len(data) > max_length:
-        truncated_data = data[:max_length] + "...[abbreviated]"
-    else:
-        truncated_data = data
+    # Estimate the number of rows that can be displayed within the MAX_STRING_LENGTH limit
+    sample_data = df.head(1).to_string()
+    avg_row_length = len(sample_data)
+    estimated_rows_per_page = MAX_STRING_LENGTH // avg_row_length
+
+    # Calculate the total number of pages
+    total_rows = len(df)
+    total_pages = -(-total_rows // estimated_rows_per_page)  # Calculate the ceiling of the division
+
+    # Validate page number
+    if page < 1 or page > total_pages:
+        return AbilityResult(
+            ability_name="read_csv",
+            ability_args={"file_path": file_path, "separator": separator, "page": page},
+            success=False,
+            message=f"Invalid page number. Please select a page between 1 and {total_pages}.",
+        )
+
+    # Get the rows corresponding to the requested page
+    start_row = (page - 1) * estimated_rows_per_page
+    end_row = min(page * estimated_rows_per_page, total_rows)
+    page_data = df.iloc[start_row:end_row].to_string()
+
+    suffix = " ..." if total_pages != page else ""
+    message = f"(Page {page}/{total_pages})\n{page_data}" + suffix
 
     return AbilityResult(
         ability_name="read_csv",
-        ability_args={"file_path": file_path, "separator": separator},
+        ability_args={"file_path": file_path, "separator": separator, "page": page},
         success=True,
-        message=json.dumps(truncated_data) if data is not None else None,
+        message=message,
     )
 
 

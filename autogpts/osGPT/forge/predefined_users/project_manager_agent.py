@@ -67,9 +67,7 @@ class ProjectManagerAgent(Agent):
             "finish_work",
         ]
         kwargs = {"job_title": self.job_title, "issue_id": issue.id, "project": project.display()}
-        return await self.execute_chained_call(
-            project, issue, "resolve-issue-project-manager", abilities, prompt_kwargs=kwargs
-        )
+        return await self.execute_chained_call(project, issue, "assign-member", abilities, prompt_kwargs=kwargs)
 
     async def review_issue(self, project: Project, issue: Issue) -> List[Activity]:
         """
