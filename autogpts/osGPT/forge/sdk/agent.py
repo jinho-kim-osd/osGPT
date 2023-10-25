@@ -65,9 +65,7 @@ class Agent:
 
         app.include_router(router, prefix="/ap/v1")
         script_dir = os.path.dirname(os.path.realpath(__file__))
-        frontend_path = pathlib.Path(
-            os.path.join(script_dir, "../../../../frontend/build/web")
-        ).resolve()
+        frontend_path = pathlib.Path(os.path.join(script_dir, "../../../../frontend/build/web")).resolve()
 
         if os.path.exists(frontend_path):
             app.mount("/app", StaticFiles(directory=frontend_path), name="app")
@@ -77,17 +75,13 @@ class Agent:
                 return RedirectResponse(url="/app/index.html", status_code=307)
 
         else:
-            LOG.warning(
-                f"Frontend not found. {frontend_path} does not exist. The frontend will not be served"
-            )
+            LOG.warning(f"Frontend not found. {frontend_path} does not exist. The frontend will not be served")
         app.add_middleware(AgentMiddleware, agent=self)
 
         return app
 
     def start(self, port):
-        uvicorn.run(
-            "forge.app:app", host="localhost", port=port, log_level="error", reload=True
-        )
+        uvicorn.run("forge.app:app", host="localhost", port=port, log_level="error", reload=True)
 
     async def create_task(self, task_request: TaskRequestBody) -> Task:
         """
@@ -123,9 +117,7 @@ class Agent:
             raise
         return task
 
-    async def list_steps(
-        self, task_id: str, page: int = 1, pageSize: int = 10
-    ) -> TaskStepsListResponse:
+    async def list_steps(self, task_id: str, page: int = 1, pageSize: int = 10) -> TaskStepsListResponse:
         """
         List the IDs of all steps that the task has created.
         """
@@ -152,24 +144,18 @@ class Agent:
         except Exception as e:
             raise
 
-    async def list_artifacts(
-        self, task_id: str, page: int = 1, pageSize: int = 10
-    ) -> TaskArtifactsListResponse:
+    async def list_artifacts(self, task_id: str, page: int = 1, pageSize: int = 10) -> TaskArtifactsListResponse:
         """
         List the artifacts that the task has created.
         """
         try:
-            artifacts, pagination = await self.db.list_artifacts(
-                task_id, page, pageSize
-            )
+            artifacts, pagination = await self.db.list_artifacts(task_id, page, pageSize)
             return TaskArtifactsListResponse(artifacts=artifacts, pagination=pagination)
 
         except Exception as e:
             raise
 
-    async def create_artifact(
-        self, task_id: str, file: UploadFile, relative_path: str
-    ) -> Artifact:
+    async def create_artifact(self, task_id: str, file: UploadFile, relative_path: str) -> Artifact:
         """
         Create an artifact for the task.
         """
@@ -218,7 +204,5 @@ class Agent:
         return StreamingResponse(
             BytesIO(retrieved_artifact),
             media_type="application/octet-stream",
-            headers={
-                "Content-Disposition": f"attachment; filename={artifact.file_name}"
-            },
+            headers={"Content-Disposition": f"attachment; filename={artifact.file_name}"},
         )

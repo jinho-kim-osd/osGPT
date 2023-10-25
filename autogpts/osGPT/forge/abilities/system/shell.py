@@ -79,10 +79,10 @@ async def execute_shell_commands(
             filename=file.name,
             filesize=file.stat().st_size,
         )
-        issue.add_attachment(new_attachment, agent)
         attachments.append(new_attachment)
-        upload_activity = issue.get_last_activity()
-        activities.append(upload_activity)
+    issue.add_attachments(attachments, agent)
+    upload_activity = issue.get_last_activity()
+    activities.append(upload_activity)
 
     return AbilityResult(
         ability_name="execute_shell_commands",

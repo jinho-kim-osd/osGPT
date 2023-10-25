@@ -1,9 +1,11 @@
 import os
 import ast
+import uuid
+import re
 from contextlib import contextmanager
 import hashlib
 from pathlib import Path
-from typing import Optional, Sequence, Any, Dict
+from typing import Optional, Sequence, Any, Dict, List, Tuple
 from datetime import datetime
 
 from .message import Message, Role, FunctionCall
@@ -26,6 +28,19 @@ def change_cwd(path: str):
         yield
     finally:
         os.chdir(prev_cwd)
+
+
+def string_to_uuid_md5(s: str) -> uuid.UUID:
+    """
+    Generate a UUID based on the MD5 hash of a given string.
+
+    Args:
+        s: The input string.
+
+    Returns:
+        uuid.UUID: The UUID generated from the MD5 hash of the input string.
+    """
+    return uuid.uuid5(uuid.NAMESPACE_DNS, s)
 
 
 def calculate_checksum(file_path: Path) -> str:
@@ -94,7 +109,8 @@ async def invoke(
     top_p: float = 0.2,
     presence_penalty: float = 0,
     frequency_penalty: float = 0,
-    request_timeout: int = 45,
+    request_timeout: int = 120,
+    max_tokens: int = 2000,
     **kwargs,
 ) -> Message:
     """
@@ -118,6 +134,7 @@ async def invoke(
         "presence_penalty": presence_penalty,
         "frequency_penalty": frequency_penalty,
         "request_timeout": request_timeout,
+        "max_tokens": max_tokens,
         "n": 1,
         **kwargs,
     }
@@ -149,3 +166,37 @@ async def invoke(
         content=openai_message["content"],
         function_call=function_call,
     )
+
+
+def parse_code_blocks(chat: str) -> List[Tuple[str, str, str]]:
+    """Extracts code blocks with file paths from a chat.
+
+    This function extracts code blocks of the format:
+    ```language
+    # path/to/file
+    code content
+    ```
+
+    Args:
+        chat (str): The chat to extract code blocks from.
+
+    Returns:
+        List[Tuple[str, str, str]]: A list of tuples. Each tuple contains:
+            - The programming language (as a string).
+            - The file path (as a string).
+            - The corresponding code block content (as a string).
+
+    Example:
+        chat_example = '''
+        Hello!
+        ```python
+        # some/path/example.py
+        print("Hello, World!")
+        ```
+        '''
+        parse_code_blocks(chat_example)
+        # Returns: [('python', 'some/path/example.py', 'print("Hello, World!")\n')]
+    """
+    regex = r"```(\S+)\s*#?\s*([\S\s]+?)\n(.*?)```"
+    matches = re.findall(regex, chat, re.DOTALL)
+    return matches

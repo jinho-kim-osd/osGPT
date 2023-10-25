@@ -37,7 +37,7 @@ def setup_workspace(db: ForgeDatabase) -> Workspace:
     # Create document specialist agent with specified abilities.
     document_specialist = DataHandlingAgent(
         public_name="Jinho Kim",
-        job_title="Data Handling Expert",
+        job_title="CSV Expert",
         workspace=workspace,
         db=db,
     )

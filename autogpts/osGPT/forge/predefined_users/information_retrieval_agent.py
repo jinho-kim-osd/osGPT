@@ -16,8 +16,8 @@ class InformationRetrievalAgent(Agent):
         "list_files",
         "change_issue_status",
         "add_comment",
-        "web_search",
-        "read_webpage",
+        "search_query",
+        "access_website",
         "finish_work",
     ]
 
@@ -33,16 +33,11 @@ class InformationRetrievalAgent(Agent):
             list: A list of activities performed while resolving the issue.
         """
         logger.info(f"Resolving issue {issue.id} in project {project.key}")
-        # abilities = [
-        #     "change_assignee",
-        #     "change_issue_status",
-        #     "add_comment",
-        #     "finish_work",
-        # ]
-        prompt_engine = PromptEngine("resolve-issue")
+        prompt_engine = PromptEngine("information-retrieval")
+        default_prompt_engine = PromptEngine("default")
         kwargs = {"job_title": self.job_title, "issue_id": issue.id, "project": project.display()}
         messages = [
-            SystemMessage(content=prompt_engine.load_prompt("system-information-retrieval", **kwargs)),
-            UserMessage(content=prompt_engine.load_prompt("user-default", **kwargs)),
+            SystemMessage(content=prompt_engine.load_prompt("resolve-issue-system", **kwargs)),
+            UserMessage(content=default_prompt_engine.load_prompt("resolve-issue-user", **kwargs)),
         ]
         return await self.execute_chained_call(project, issue, messages, None)

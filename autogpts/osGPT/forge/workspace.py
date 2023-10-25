@@ -3,10 +3,12 @@ from pathlib import Path
 from datetime import datetime
 from typing import List, Dict, Optional
 
+from weaviate import Client
 from pydantic import BaseModel, Field
 
 from forge.sdk import Workspace as WorkspaceService
 from .schema import Project
+from .vectorstore import initialize_vectorstore
 
 
 class FileInfo(BaseModel):
@@ -26,6 +28,7 @@ class Workspace(BaseModel):
     projects: List[Project] = Field(default_factory=list)
     project_key_to_path: Dict[str, Path] = Field(default_factory=dict)
     service: WorkspaceService
+    vectorstore: Client = Field(default_factory=initialize_vectorstore)
 
     class Config:
         arbitrary_types_allowed = True
@@ -109,13 +112,14 @@ class Workspace(BaseModel):
         with open(full_path, "rb") as file:
             return file.read()
 
-    def list_files_by_key(self, key: str, path: Optional[str] = None) -> List[FileInfo]:
+    def list_files_by_key(self, key: str, path: Optional[str] = None, recursive: bool = True) -> List[FileInfo]:
         """
         List all files and directories in a specified project path using its registered key.
 
         Args:
             key (str): The key associated with the project path.
             path (str, optional): The specific path within the project to list files and directories. Defaults to None.
+            recursive (bool, optional): Whether to list files and directories recursively. Defaults to False.
 
         Returns:
             List[FileInfo]: A list of FileInfo instances, each containing information about a file or directory.
@@ -132,17 +136,24 @@ class Workspace(BaseModel):
             raise ValueError(f"Path {target_path} does not exist!")
 
         files_info = []
-        for item in target_path.iterdir():
-            relative_path = self.get_relative_path_by_key(key, item)
-            updated_at = datetime.fromtimestamp(item.stat().st_mtime)
-            file_info = FileInfo(
-                absolute_url=str(item),
-                relative_url=relative_path,
-                filename=item.name,
-                filesize=item.stat().st_size,
-                updated_at=updated_at,
-            )
-            files_info.append(file_info)
+
+        if recursive:
+            items = target_path.rglob("*")
+        else:
+            items = target_path.iterdir()
+
+        for item in items:
+            if item.is_file():
+                relative_path = self.get_relative_path_by_key(key, item)
+                updated_at = datetime.fromtimestamp(item.stat().st_mtime)
+                file_info = FileInfo(
+                    absolute_url=str(item),
+                    relative_url=relative_path,
+                    filename=item.name,
+                    filesize=item.stat().st_size,
+                    updated_at=updated_at,
+                )
+                files_info.append(file_info)
 
         return files_info
 
@@ -199,6 +210,42 @@ class Workspace(BaseModel):
             updated_at=updated_at,
         )
         return file_info
+
+    def display_project_file_structure(self, key: str, indent: str = "    ") -> str:
+        """
+        Display the file structure of the project in a tree format.
+
+        Args:
+            key (str): The key associated with the project path.
+            indent (str, optional): The indentation string for the tree structure. Defaults to "    " (4 spaces).
+
+        Returns:
+            str: A string representation of the project's file structure in tree format.
+
+        Raises:
+            ValueError: If no registered path for the given key or the specified path does not exist.
+        """
+        project_root = self.get_project_path_by_key(key)
+        if not project_root:
+            raise ValueError(f"No registered path for key {key}!")
+        if not project_root.exists():
+            raise ValueError(f"Path {project_root} does not exist!")
+
+        def _generate_tree(path: Path, prefix: str = "") -> str:
+            items = list(path.iterdir())
+            tree_structure = []
+
+            for idx, item in enumerate(items):
+                is_last = idx == len(items) - 1
+                tree_structure.append(prefix + ("└── " if is_last else "├── ") + item.name)
+
+                if item.is_dir():
+                    sub_prefix = prefix + (indent if is_last else "│   ")
+                    tree_structure.extend(_generate_tree(item, sub_prefix))
+
+            return tree_structure
+
+        return "\n".join(_generate_tree(project_root))
 
     @property
     def base_path(self) -> Path:

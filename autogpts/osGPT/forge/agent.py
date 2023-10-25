@@ -23,7 +23,7 @@ from .db import ForgeDatabase
 logger = ForgeLogger(__name__)
 
 
-class Agent(User, AgentBase):
+class Agent(User):
     """
     A user type that acts both as a user and an agent, equipped with abilities and behaviors
     to interact with and modify the workspace and its contents.
@@ -51,11 +51,11 @@ class Agent(User, AgentBase):
     async def resolve_issue(self, project: Project, issue: Issue) -> List[Activity]:
         """Resolve a given issue by executing a series of predefined actions."""
         logger.info(f"Reviewing issue {issue.id} in project {project.key}")
-        prompt_engine = PromptEngine("resolve-issue")
+        prompt_engine = PromptEngine("default")
         kwargs = {"job_title": self.job_title, "issue_id": issue.id, "project": project.display()}
         messages = [
-            SystemMessage(content=prompt_engine.load_prompt("system-default", **kwargs)),
-            UserMessage(content=prompt_engine.load_prompt("user-default", **kwargs)),
+            SystemMessage(content=prompt_engine.load_prompt("resolve-issue-system", **kwargs)),
+            UserMessage(content=prompt_engine.load_prompt("resolve-issue-user", **kwargs)),
         ]
         return await self.execute_chained_call(project, issue, messages, None)
 
@@ -65,23 +65,18 @@ class Agent(User, AgentBase):
         issue: Issue,
     ) -> Dict[str, Any]:
         """Review a given issue by executing a series of predefined actions."""
-        logger.info(f"Reviewing issue {issue.id} in project {project.key}")
-        prompt_engine = PromptEngine("review-issue")
-        kwargs = {"job_title": self.job_title, "issue_id": issue.id, "project": project.display()}
-        messages = [
-            SystemMessage(content=prompt_engine.load_prompt("system-default", **kwargs)),
-            UserMessage(content=prompt_engine.load_prompt("user-default", **kwargs)),
-        ]
-        return await self.execute_chained_call(project, issue, messages, None)
+        raise NotImplementedError
 
     async def think(
         self,
         messages: Sequence[Message],
         functions: Optional[Dict[str, Any]] = None,
         function_call: Optional[str] = None,
+        temperature: float = 0.3,
+        top_p: float = 0.2,
     ) -> AIMessage:
         """Process a sequence of messages and execute the given function call if provided."""
-        return await invoke(messages, functions, function_call)
+        return await invoke(messages, functions, function_call, temperature=temperature, top_p=top_p)
 
     async def execute_chained_call(
         self,
@@ -89,7 +84,7 @@ class Agent(User, AgentBase):
         issue: Issue,
         messages: List[Message],
         ability_names: Optional[List[str]] = None,
-        max_chained_calls: int = 10,
+        max_chained_calls: int = 20,
     ) -> List[Activity]:
         """Execute a series of actions defined by the given prompt name and return the resulting activities."""
         logger.info(f"Executing chained call for issue {issue.id}")
@@ -113,7 +108,12 @@ class Agent(User, AgentBase):
             stack += 1
             state = project.display()
             print(stack)
-            message = await self.think(messages, functions=functions)
+            try:
+                message = await self.think(messages, functions=functions)
+            except Exception as e:
+                logger.error(f"Error executing think - {type(e).__name__}: {str(e)}")
+                break
+
             if message.function_call:
                 logger.info(
                     f"Handling function call {message.function_call.name}({str(message.function_call.arguments)})"
@@ -154,14 +154,14 @@ class Agent(User, AgentBase):
 
     async def _handle_function_call(self, project: Project, issue: Issue, function_call: FunctionCall) -> AbilityResult:
         """Handle a function call, execute the corresponding ability, and return the result."""
-        try:
-            logger.info(f"Executing ability {function_call.name} for issue {issue.id}")
-            return await self.abilities.run_ability(project, issue, function_call.name, **function_call.arguments)
-        except Exception as e:
-            logger.error(f"Error executing ability - {type(e).__name__}: {str(e)}")
-            return AbilityResult(
-                ability_name=function_call.name,
-                ability_args=function_call.arguments,
-                message=f"Error - {type(e).__name__}: {str(e)}",
-                success=False,
-            )
+        # try:
+        #     logger.info(f"Executing ability {function_call.name} for issue {issue.id}")
+        return await self.abilities.run_ability(project, issue, function_call.name, **function_call.arguments)
+        # except Exception as e:
+        #     logger.error(f"Error executing ability - {type(e).__name__}: {str(e)}")
+        #     return AbilityResult(
+        #         ability_name=function_call.name,
+        #         ability_args=function_call.arguments,
+        #         message=f"Error - {type(e).__name__}: {str(e)}",
+        #         success=False,
+        #     )

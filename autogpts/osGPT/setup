@@ -9,5 +9,6 @@
  fi
 
  poetry install --extras benchmark
+ poetry run playwright install
  echo "Setup completed successfully."
  exit 0

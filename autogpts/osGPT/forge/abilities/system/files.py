@@ -29,7 +29,7 @@ async def list_files(agent, project: Project, issue: Issue, dir_path: str = ".")
     List files in the specified or current directory within the workspace.
     """
     file_infos = agent.workspace.list_files_by_key(key=project.key, path=dir_path)
-    file_names = [file_info.filename for file_info in file_infos]
+    file_names = [file_info.relative_url for file_info in file_infos]
 
     if not file_names:
         return AbilityResult(
@@ -78,7 +78,7 @@ async def write_file(agent, project: Project, issue: Issue, file_path: str, data
         filename=file_info.filename,
         filesize=file_info.filesize,
     )
-    issue.add_attachment(new_attachment, agent)
+    issue.add_attachments([new_attachment], agent)
     upload_activity = issue.get_last_activity()
 
     return AbilityResult(

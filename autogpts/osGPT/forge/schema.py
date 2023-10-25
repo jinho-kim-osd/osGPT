@@ -241,19 +241,31 @@ class Issue(BaseModel):
             return self.activities[-1]
         return None
 
-    def add_attachment(self, attachment: Attachment, created_by: User):
-        existing_attachment = next((a for a in self.attachments if a.filename == attachment.filename), None)
+    def add_attachments(self, attachments: List[Attachment], created_by: User):
+        new_attachments = []
+        updated_attachments = []
 
-        if existing_attachment:
-            self.attachments.remove(existing_attachment)
-            activity = AttachmentUpdateActivity(
-                created_by=created_by, old_attachment=existing_attachment, new_attachment=attachment
-            )
-        else:
-            activity = AttachmentUploadActivity(created_by=created_by, attachments=[attachment])
+        for attachment in attachments:
+            existing_attachment = next((a for a in self.attachments if a.url == attachment.url), None)
 
-        self.attachments.append(attachment)
-        self.add_activity(activity)
+            if existing_attachment:
+                self.attachments.remove(existing_attachment)
+                updated_attachments.append((existing_attachment, attachment))
+            else:
+                new_attachments.append(attachment)
+
+            self.attachments.append(attachment)
+
+        if new_attachments:
+            upload_activity = AttachmentUploadActivity(created_by=created_by, attachments=new_attachments)
+            self.add_activity(upload_activity)
+
+        if updated_attachments:
+            for old_attachment, new_attachment in updated_attachments:
+                update_activity = AttachmentUpdateActivity(
+                    created_by=created_by, old_attachment=old_attachment, new_attachment=new_attachment
+                )
+                self.add_activity(update_activity)
 
     def remove_attachment(self, attachment: Attachment, created_by: User):
         self.attachments.remove(attachment)
@@ -479,56 +491,47 @@ class Project(BaseModel):
         else:
             print(f"Failed to apply transition '{transition_name}' to issue #{issue.id}")
 
-    def display(self) -> str:
+    def display(self, exclude: List[str] = None) -> str:
+        if exclude is None:
+            exclude = []
+
         tree_display = TreeStructureDisplay()
         project_node = tree_display.add_node(f"📁 {str(self)}")
 
-        if self.members:
+        if "members" not in exclude and self.members:
             project_members_node = tree_display.add_node("👤 Members:", parent=project_node)
             for member in self.members:
                 member_node = tree_display.add_node(str(member), parent=project_members_node)
 
-        # Sorting issues by their ID in ascending order
         sorted_issues = sorted(self.issues, key=lambda x: x.id)
-
         for issue in sorted_issues:
             issue_info = f"📋 {issue.type} Issue #{issue.id}: {issue.summary} (Status: {issue.status}, Assignee: {issue.assignee.public_name if issue.assignee else 'None'})"
             issue_node = tree_display.add_node(issue_info, parent=project_node)
 
-            if issue.description:
+            if "description" not in exclude and issue.description:
                 desc_node = tree_display.add_node(f"📄 Description:", parent=issue_node)
                 for paragraph in issue.description.split("\n"):
                     if paragraph.strip():
                         tree_display.add_node(paragraph.strip(), parent=desc_node)
 
-            # if issue.parent_issue:
-            #     parent_issue = issue.parent_issue
-            #     parent_issue_node = tree_display.add_node(
-            #         "👪 Parent Issue:", parent=issue_node
-            #     )
-            #     parent_info = f"📋 {parent_issue.type} Issue #{parent_issue.id}: '{parent_issue.summary}' (Status: {parent_issue.status}, Assignee: {parent_issue.assignee.public_name if parent_issue.assignee else 'None'})"
-            #     parent_node = tree_display.add_node(
-            #         parent_info, parent=parent_issue_node
-            #     )
-
-            if issue.links:
+            if "linked_issues" not in exclude and issue.links:
                 linked_issues_node = tree_display.add_node("🔗 Linked Issues:", parent=issue_node)
                 for link in issue.links:
                     link_info = f"Type: {link.type}, {link.target_issue}"
                     tree_display.add_node(link_info, parent=linked_issues_node)
 
-            if issue.activities:
+            if "activities" not in exclude and issue.activities:
                 activities_node = tree_display.add_node("📆 Activities:", parent=issue_node)
                 for activity in sorted(issue.activities, key=lambda x: x.created_at):
                     activity_info = f"{activity}"
                     activity_node = tree_display.add_node(activity_info, parent=activities_node)
 
-                    if isinstance(activity, Comment) and activity.attachments:
+                    if "attachments" not in exclude and isinstance(activity, Comment) and activity.attachments:
                         for attachment in sorted(activity.attachments, key=lambda x: x.uploaded_at):
                             attachment_info = f"📎 '{attachment.filename}' (Size: {attachment.filesize} bytes, Uploaded on: {humanize_time(attachment.uploaded_at)})"
                             tree_display.add_node(attachment_info, parent=activity_node)
 
-            if issue.attachments:
+            if "attachments" not in exclude and issue.attachments:
                 attachments_node = tree_display.add_node("📎 Attachments:", parent=issue_node)
                 for attachment in sorted(issue.attachments, key=lambda x: x.uploaded_at):
                     attachment_info = f"📎 '{attachment.filename}' (Size: {attachment.filesize} bytes, Uploaded on: {humanize_time(attachment.uploaded_at)})"

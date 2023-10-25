@@ -1,7 +1,10 @@
 import os
 from typing import Optional, List
+
+from fastapi import APIRouter
+
 from forge.sdk import (
-    Agent,
+    Agent as AgentBase,
     Step,
     StepRequestBody,
     ForgeLogger,
@@ -9,7 +12,10 @@ from forge.sdk import (
     Task,
     TaskRequestBody,
 )
+from forge.sdk.routes.agent_protocol import base_router
+from forge.sdk.middlewares import AgentMiddleware
 from forge.sdk.abilities.registry import AbilityRegister
+
 from .schema import (
     Status,
     Project,
@@ -22,12 +28,13 @@ from .schema import (
 from .predefined_users.project_manager_agent import ProjectManagerAgent
 from .db import ForgeDatabase
 from .workspace import Workspace
+from .routes.jira import jira_router
 
 
 logger = ForgeLogger(__name__)
 
 
-class JiraAgent(Agent):
+class JiraAgent(AgentBase):
     """Agent emulating Jira or similar project management systems."""
 
     def __init__(
@@ -38,6 +45,13 @@ class JiraAgent(Agent):
         self.db = database
         self.workspace: Workspace = workspace
         self.abilities = AbilityRegister(self, None)
+
+    def get_agent_app(self, router: APIRouter = base_router):
+        """
+        Start the agent server.
+        """
+        router.include_router(jira_router)
+        return super().get_agent_app(router)
 
     def reset(self):
         """Clear all issues in each project within the workspace."""
@@ -74,13 +88,15 @@ class JiraAgent(Agent):
         # issue.add_activity(comment)
 
         file_infos = self.workspace.list_files_by_key(project.key)
+        attachments = []
         for file_info in file_infos:
             attachment = Attachment(
                 url=file_info.relative_url,
                 filename=file_info.filename,
                 filesize=file_info.filesize,
             )
-            issue.add_attachment(attachment, user_proxy)
+            attachments.append(attachment)
+        issue.add_attachments(attachments, user_proxy)
 
     async def execute_step(self, task_id: str, step_request: StepRequestBody) -> Step:
         """Execute the task step, update its status and output."""
