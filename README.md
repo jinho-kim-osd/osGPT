@@ -107,7 +107,7 @@ brew install chromedriver
   # issue.add_activity(comment)
   ```
 
-### 2. Coding: 3/8
+### 2. Coding: 6/8
 
 ### 3. Scrape/Synthesize: 8/8
 
@@ -117,8 +117,6 @@ brew install chromedriver
    Our top priority is the full integration with real-world project management systems. Especially with platforms like Jira, we're taking steps to ensure that AI agents can co-work side by side with human teammates, bringing a unified project management experience to the table.
 
 https://github.com/jinho-kim-osd/osGPT/assets/138539706/05de129a-3a98-4dbe-a508-e534c60854d1
-
-
 
 2. Enhanced Agent Protocols
    As we advance, our AI agent protocols will also undergo significant enhancements. Expect each agent to operate even more autonomously, sticking to its designated protocols. The result? A scalable and flexible system where agents can be swapped or upgraded as your project needs evolve.
