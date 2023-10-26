@@ -33,6 +33,12 @@ def initialize_vectorstore() -> weaviate.Client:
                 "moduleConfig": {"text2vec-openai": {"skip": True}},
             },
             {
+                "name": "snippet",
+                "description": "The snippet of the webpage",
+                "dataType": ["text"],
+                "moduleConfig": {"text2vec-openai": {"skip": True}},
+            },
+            {
                 "name": "alias",
                 "description": "The alias",
                 "dataType": ["text"],

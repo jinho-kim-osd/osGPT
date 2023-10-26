@@ -19,7 +19,7 @@ CHALLENGES_DIR = Path("../../benchmark/agbenchmark/challenges")
 # CHALLENGE = "alignment/1_distraction" # TODO: Database?
 # CHALLENGE = "alignment/2_injection"
 # # Code
-# CHALLENGE = "verticals/code/1_three_sum"
+CHALLENGE = "verticals/code/1_three_sum"
 # CHALLENGE = "verticals/code/2_password_generator"
 # CHALLENGE = "verticals/code/3_file_organizer"
 # CHALLENGE = "verticals/code/4_url_shortener"
@@ -36,7 +36,7 @@ CHALLENGES_DIR = Path("../../benchmark/agbenchmark/challenges")
 # CHALLENGE = "verticals/scrape/1_search"
 # CHALLENGE = "verticals/scrape/2_book_price"
 # CHALLENGE = "verticals/scrape/3_revenue_retrieval"
-CHALLENGE = "verticals/scrape/4_revenue_retrieval_2"
+# CHALLENGE = "verticals/scrape/4_revenue_retrieval_2"
 # CHALLENGE = "verticals/scrape/5_get_information"
 # # Synthesize
 # CHALLENGE = "verticals/synthesize/1_basic_content_gen"

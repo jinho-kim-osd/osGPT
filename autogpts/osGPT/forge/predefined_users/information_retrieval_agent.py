@@ -16,6 +16,8 @@ class InformationRetrievalAgent(Agent):
         "list_files",
         "change_issue_status",
         "add_comment",
+        # "brainstorm_search_queries",
+        # "search_queries"
         "search_query",
         "access_website",
         "finish_work",

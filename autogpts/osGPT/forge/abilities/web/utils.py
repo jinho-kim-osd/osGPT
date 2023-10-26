@@ -1,47 +1,22 @@
 import json
-from typing import List, Optional, Dict, Any, Union
-from langchain.document_loaders.chromium import Document
-from langchain.document_loaders import AsyncChromiumLoader
-from langchain.document_transformers import BeautifulSoupTransformer
-from langchain.text_splitter import RecursiveCharacterTextSplitter
-
 import os
-import json
 import time
 
+from typing import List, Optional, Dict, Any, Union
+from langchain.document_loaders.chromium import Document
+from langchain.text_splitter import RecursiveCharacterTextSplitter
+
 from serpapi import GoogleSearch
+from .selenium import browse_website
 
 
 SERPAPI_MAX_ATTEMPTS = 3
 GOOGLE_SEARCH_NUMBER = 5
 
 
-TAGS_TO_EXTRACT = [
-    "p",
-    "li",
-    "div",
-    "a",
-    "h1",
-    "h2",
-    "h3",
-    "h4",
-    "h5",
-    "h6",
-    "span",
-    "strong",
-    "em",
-    "blockquote",
-    "pre",
-    "code",
-    "td",
-    "th",
-    "tspan",
-]
-
-
 async def extract_and_store_webpage_content(
-    link, client, chunk_size: int = 1500, alias: Optional[str] = None
-) -> List[str]:
+    link, client, chunk_size: int = 1500, alias: Optional[str] = None, **kwargs
+):
     """
     Extract and store the content of a webpage.
 
@@ -50,37 +25,22 @@ async def extract_and_store_webpage_content(
         client (Any): The client instance to store the extracted content.
         chunk_size (int, optional): The size for each chunk of split content. Defaults to 1500.
         alias (Optional[str], optional): An alias for the webpage. Defaults to None.
-
-    Returns:
-        List[str]: A list of UUIDs of the stored webpage contents.
     """
-    loader = AsyncChromiumLoader([])
-    html_content = await loader.ascrape_playwright(link)
-    doc = Document(page_content=html_content, metadata={"source": link})
-
-    bs_transformer = BeautifulSoupTransformer()
-    docs_transformed = bs_transformer.transform_documents([doc], tags_to_extract=TAGS_TO_EXTRACT)
+    text, links = await browse_website(link)
+    doc = Document(page_content=text, metadata={"source": link})
 
     splitter = RecursiveCharacterTextSplitter(chunk_size=chunk_size, chunk_overlap=0)
-    splitted_docs_list = splitter.split_documents(docs_transformed)
+    splitted_docs_list = splitter.split_documents([doc])
 
-    uuids = []
-    for doc in splitted_docs_list:
-        data_object = {
-            "link": link,
-            "content": safe_google_results(doc.page_content),
-        }
-        if alias:
-            data_object["alias"] = alias
-        try:
-            uuid = client.data_object.create(data_object=data_object, class_name="Webpage")
-            uuids.append(uuid)
-        except Exception as e:
-            print(e)
-    return uuids
+    with client.batch as batch:
+        for doc in splitted_docs_list:
+            data_object = {"link": link, "content": safe_google_results(doc.page_content), **kwargs}
+            if alias:
+                data_object["alias"] = alias
+            batch.add_data_object(data_object, "Webpage")
 
 
-def fetch_google_results(query, page, num: int = 5) -> List[Dict[Any, Any]]:
+def fetch_google_results(query, page: int, num: int = 5) -> List[Dict[Any, Any]]:
     """
     Fetch Google search results for a given query.
 
@@ -104,7 +64,6 @@ def fetch_google_results(query, page, num: int = 5) -> List[Dict[Any, Any]]:
         search = GoogleSearch(search_parameters)
         results = search.get_dict()
         search_results = list(results.get("organic_results", []))
-
         if search_results:
             return search_results
 

@@ -52,12 +52,10 @@ class ProjectManagerAgent(Agent):
         for attempt in range(max_tries):
             try:
                 response_message = await self.think(messages, temperature=0)
+                messages.append(response_message)
                 selected_data = json.loads(response_message.content)
 
-                try:
-                    issue = project.get_issue(selected_data["issue_id"])
-                except:
-                    issue = None
+                issue = project.get_issue(selected_data["issue_id"])
                 member = project.get_member(selected_data["next_person"])
                 return member.user, issue
 

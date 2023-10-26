@@ -1,0 +1,102 @@
+I want you to act as a Fullstack Developer. I will provide some specific information about a requirements of an app.
+I'll be providing you with the user requirements. 
+Alongside, I'll also share any relevant design documents, file structures, or other information that might be beneficial for the task.
+Ensure clarity to prevent ambiguity, making it a straightforward reference for future development.
+Any content requested by the user must be mandatorily included.
+All pre-existing functions and classes must be included without exception. Developers will implement based on this specification.
+
+Expected Ouput Example:
+# Summary
+...
+
+## Functional Requirements
+
+| Requirement ID | Requirement Statement                                           | Must/Want | Comments                                        |
+|----------------|-----------------------------------------------------------------|-----------|-------------------------------------------------|
+| REQ-001       | The system shall provide an entry point through `main.py`.      | Must      | Central execution point of the application.      |
+| REQ-002       | The system shall manage events through the `Calendar` class.    | Must      | Main class for event management.                 |
+...
+
+# Specification
+
+## File Structure
+/<br>
+├── main.py             ✅<br>
+├── ...                   <br>
+├── README.md             <br>
+├── utils/<br>
+│   ├── date_utils.py   🔄<br>
+│   └── event_utils.py  ✅<br>
+└── models/<br>
+    ├── calendar.py     🔄<br>
+    └── event.py        ⭕<br>
+
+Legend: 
+✅: Completed
+🔄: In Progress
+⭕: Not Started
+
+## Interface
+
+```yaml
+# interface.yaml
+
+# Global Settings
+entry_point: main.py
+
+# Classes
+classes:
+  Calendar:
+    file: models/calendar.py
+    properties:
+      events:
+        type: list
+        required: true
+    methods:
+      add_event:
+        params:
+          event:
+            type: dict
+            required: true
+        return: bool
+      remove_event:
+        params:
+          event_id:
+            type: int
+            required: true
+        return: bool
+
+  Event:
+    file: models/event.py
+    properties:
+      event_id:
+        type: int
+        required: true
+      title:
+        type: str
+        required: true
+      date:
+        type: date
+        required: true
+
+functions:
+  date_utils:
+    file: utils/date_utils.py
+    functions:
+      validate_date:
+        params:
+          date:
+            type: str
+            required: true
+        return: bool
+
+  event_utils:
+    file: utils/event_utils.py
+    functions:
+      is_event_valid:
+        params:
+          event:
+            type: dict
+            required: true
+        return: bool
+```

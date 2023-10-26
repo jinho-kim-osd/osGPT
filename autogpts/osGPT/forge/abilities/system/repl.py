@@ -12,7 +12,8 @@ logger = ForgeLogger(__name__)
 @ability(
     name="execute_python_code",
     description=(
-        "Execute Python commands. Useful for manipulating existing files and data analysis. Output might be abbreviated."
+        "Execute Python commands. Useful for manipulating existing files and data analysis. "
+        "Use the 'print' function to display output. Output might be abbreviated."
     ),
     parameters=[
         {

@@ -41,13 +41,20 @@ async def change_assignee(
     Change the assignee of a specified Jira issue
     """
     new_assignee_name = new_assignee
-    new_assignee = project.get_member(new_assignee_name).user
+    new_assignee_object = project.get_member(new_assignee_name).user
     old_assignee = issue.assignee
-    issue.assignee = new_assignee
 
-    activity = AssignmentChangeActivity(
-        old_assignee=old_assignee, new_assignee=new_assignee, created_by=agent
-    )
+    if old_assignee.public_name == new_assignee_object.public_name:
+        return AbilityResult(
+            ability_name="change_assignee",
+            ability_args={"new_assignee": new_assignee_name},
+            success=False,
+            message="The user is already assigned.",
+        )
+
+    issue.assignee = new_assignee_object
+
+    activity = AssignmentChangeActivity(old_assignee=old_assignee, new_assignee=new_assignee_object, created_by=agent)
     issue.add_activity(activity)
     return AbilityResult(
         ability_name="change_assignee",
@@ -70,9 +77,7 @@ async def change_assignee(
     ],
     output_type="object",
 )
-async def view_issue_details(
-    agent, project: Project, issue: Issue, issue_id: int
-) -> AbilityResult:
+async def view_issue_details(agent, project: Project, issue: Issue, issue_id: int) -> AbilityResult:
     """
     View the details of a specified Jira issue
     """
@@ -98,9 +103,7 @@ async def view_issue_details(
     ],
     output_type="object",
 )
-async def add_comment(
-    agent, project: Project, issue: Issue, content: str
-) -> AbilityResult:
+async def add_comment(agent, project: Project, issue: Issue, content: str) -> AbilityResult:
     """
     Add a comment to a specified Jira issue
     """
@@ -147,24 +150,16 @@ async def change_issue_status(
     """
     # Verifying if the new status is valid and applicable
     if not any(
-        [
-            transition
-            for transition in project.workflow.transitions
-            if transition.destination_status == new_status
-        ]
+        [transition for transition in project.workflow.transitions if transition.destination_status == new_status]
     ):
-        raise ValueError(
-            f"The status '{new_status}' is not a valid transition for the issue #{issue.id}"
-        )
+        raise ValueError(f"The status '{new_status}' is not a valid transition for the issue #{issue.id}")
 
     # Changing the status of the issue
     old_status = issue.status
     issue.status = Status(new_status)
 
     # Logging the status change as an activity
-    activity = StatusChangeActivity(
-        old_status=old_status, new_status=issue.status, created_by=agent
-    )
+    activity = StatusChangeActivity(old_status=old_status, new_status=issue.status, created_by=agent)
     issue.add_activity(activity)
     return AbilityResult(
         ability_name="change_issue_status",
@@ -187,9 +182,7 @@ async def change_issue_status(
     ],
     output_type="object",
 )
-async def close_issue(
-    agent, project: Project, issue: Issue, issue_id: int
-) -> AbilityResult:
+async def close_issue(agent, project: Project, issue: Issue, issue_id: int) -> AbilityResult:
     """
     Close a specified Jira issue
     """
@@ -201,9 +194,7 @@ async def close_issue(
     old_status = closing_issue.status
     closing_issue.status = Status.CLOSED
 
-    activity = StatusChangeActivity(
-        old_status=old_status, new_status=closing_issue.status, created_by=agent
-    )
+    activity = StatusChangeActivity(old_status=old_status, new_status=closing_issue.status, created_by=agent)
     issue.add_activity(activity)
     return AbilityResult(
         ability_name="close_issue",
@@ -393,9 +384,7 @@ async def remove_issue_link(
         source_issue.links.remove(link_to_remove)
 
     activity = IssueLinkDeletionActivity(link=link, created_by=agent)
-    issue.add_activity(
-        activity
-    )  # TODO: should we add this activity to source and target issue?
+    issue.add_activity(activity)  # TODO: should we add this activity to source and target issue?
     return AbilityResult(
         ability_name="create_issue",
         ability_args={

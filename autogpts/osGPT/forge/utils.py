@@ -200,3 +200,79 @@ def parse_code_blocks(chat: str) -> List[Tuple[str, str, str]]:
     regex = r"```(\S+)\s*#?\s*([\S\s]+?)\n(.*?)```"
     matches = re.findall(regex, chat, re.DOTALL)
     return matches
+
+
+def parse_code_blocks(chat: str) -> List[Tuple[str, str, str]]:
+    """Extracts code blocks with optional file paths from a chat.
+
+    This function extracts code blocks of the format:
+    ```language
+    # path/to/file (optional)
+    code content
+    ```
+
+    Args:
+        chat (str): The chat to extract code blocks from.
+
+    Returns:
+        List[Tuple[str, str, str]]: A list of tuples. Each tuple contains:
+            - The programming language (as a string).
+            - The file path (as a string or empty string if not provided).
+            - The corresponding code block content (as a string).
+
+    Example:
+        chat_example = '''
+        Hello!
+        ```python
+        # some/path/example.py
+        print("Hello, World!")
+        ```
+        '''
+        parse_code_blocks(chat_example)
+        # Returns: [('python', 'some/path/example.py', 'print("Hello, World!")\n')]
+    """
+    regex = r"```(\S+)\s*(?:#\s*(\S+?)\n)?(.*?)```"
+    matches = re.findall(regex, chat, re.DOTALL)
+    return [(lang, path if path else "", code) for lang, path, code in matches]
+
+
+def parse_outermost_code_blocks(chat: str) -> List[Tuple[str, str, str]]:
+    """Extracts outermost code blocks with optional file paths from a chat.
+
+    This function extracts code blocks of the format:
+    ```language
+    # path/to/file (optional)
+    code content
+    ```
+
+    Args:
+        chat (str): The chat to extract code blocks from.
+
+    Returns:
+        List[Tuple[str, str, str]]: A list of tuples. Each tuple contains:
+            - The programming language (as a string).
+            - The file path (as a string or empty string if not provided).
+            - The corresponding code block content (as a string).
+
+    Example:
+        chat_example = '''
+        Hello!
+        ```python
+        # some/path/example.py
+        print("Hello, World!")
+        ```
+        '''
+        parse_outermost_code_blocks(chat_example)
+        # Returns: [('python', 'some/path/example.py', 'print("Hello, World!")\n')]
+    """
+    regex = r"```(\S+?)\s*(?:#\s*(\S+?)\n)?(.*?)```"
+    matches = re.findall(regex, chat, re.DOTALL)
+
+    # Filter to get only outermost code blocks
+    indices_to_remove = set()
+    for i, (_, _, code) in enumerate(matches):
+        if "```" in code:
+            indices_to_remove.add(i)
+
+    filtered_matches = [match for idx, match in enumerate(matches) if idx not in indices_to_remove]
+    return [(lang, path if path else "", code) for lang, path, code in filtered_matches]

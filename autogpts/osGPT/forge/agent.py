@@ -1,7 +1,7 @@
 from typing import Optional, List, Any, Dict, Sequence, Literal
 
 from forge.sdk import (
-    Agent as AgentBase,
+    # Agent as AgentBase,
     ForgeLogger,
     PromptEngine,
 )
@@ -107,7 +107,7 @@ class Agent(User):
         while stack < max_chained_calls:
             stack += 1
             state = project.display()
-            print(stack)
+            logger.info(f"Current Stack: {stack}")
             try:
                 message = await self.think(messages, functions=functions)
             except Exception as e:
@@ -149,19 +149,25 @@ class Agent(User):
             else:
                 logger.info(message.content)
                 messages.append(message)
+                messages.append(UserMessage(content=project.display()))
+                messages.append(
+                    UserMessage(
+                        content="If you want to speak, use the 'comment' function. For all other actions, use the appropriate functions!"
+                    )
+                )
 
         return activities
 
     async def _handle_function_call(self, project: Project, issue: Issue, function_call: FunctionCall) -> AbilityResult:
         """Handle a function call, execute the corresponding ability, and return the result."""
-        # try:
-        #     logger.info(f"Executing ability {function_call.name} for issue {issue.id}")
-        return await self.abilities.run_ability(project, issue, function_call.name, **function_call.arguments)
-        # except Exception as e:
-        #     logger.error(f"Error executing ability - {type(e).__name__}: {str(e)}")
-        #     return AbilityResult(
-        #         ability_name=function_call.name,
-        #         ability_args=function_call.arguments,
-        #         message=f"Error - {type(e).__name__}: {str(e)}",
-        #         success=False,
-        #     )
+        try:
+            logger.info(f"Executing ability {function_call.name} for issue {issue.id}")
+            return await self.abilities.run_ability(project, issue, function_call.name, **function_call.arguments)
+        except Exception as e:
+            logger.error(f"Error executing ability - {type(e).__name__}: {str(e)}")
+            return AbilityResult(
+                ability_name=function_call.name,
+                ability_args=function_call.arguments,
+                message=f"Error - {type(e).__name__}: {str(e)}",
+                success=False,
+            )

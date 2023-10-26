@@ -1,5 +1,3 @@
-import json
-
 from langchain.tools.shell import ShellTool
 
 from forge.sdk.forge_log import ForgeLogger

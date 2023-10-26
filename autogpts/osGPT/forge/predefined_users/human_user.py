@@ -1,6 +1,10 @@
 from typing import List, Optional
 
+from forge.sdk import ForgeLogger
+
 from ..schema import User, UserType, Project, Issue, Activity, Comment
+
+logger = ForgeLogger(__name__)
 
 
 class HumanUser(User):

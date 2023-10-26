@@ -17,10 +17,11 @@ class SoftwareDevelopmentAgent(Agent):
         "read_file",
         "write_file",
         "list_files",
+        # "execute_python_code",
         "execute_shell_commands",
-        "review_and_update_code",
-        "write_spec_sheet",
-        "draft_initial_code",
+        "design_solution",
+        "write_code",
+        "write_unit_tests",
         "finish_work",
     ]
 
