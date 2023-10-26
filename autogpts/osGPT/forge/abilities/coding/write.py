@@ -147,6 +147,10 @@ async def write_unit_tests(
     design_document = design_document.decode("utf-8")
 
     # Extracting filename without extension to append 'test_*.py'
+    code_filename = os.path.basename(code_file_path)
+    base_name, _ = os.path.splitext(code_filename)
+    test_filename = f"test_{base_name}.py"
+
     code = agent.workspace.read_by_key(key=project.key, path=code_file_path)
     code = code.decode("utf-8")
 
@@ -158,11 +162,12 @@ async def write_unit_tests(
     print(code_response.content)
     messages.append(code_response)
 
-    code_blocks = extract_outer_markdown(code_response.content)
+    code_blocks = parse_code_blocks(code_response.content)
 
     attachments = []
     for lang, file_path, unit_test_code in code_blocks:
-        unit_test_file_info = agent.workspace.write_file_by_key(project.key, file_path, unit_test_code.encode())
+        unit_test_file_info = agent.workspace.write_file_by_key(project.key, test_filename, unit_test_code.encode())
+
         unit_test_code_attachment = Attachment(
             url=unit_test_file_info.relative_url,
             filename=unit_test_file_info.filename,
