@@ -4,6 +4,7 @@ from .workspace import Workspace
 from .db import ForgeDatabase
 from .schema import Role, Transition, Status, Workflow, Project
 
+from .agent import Agent
 from .predefined_users import (
     ProjectManagerAgent,
     DataHandlingAgent,
@@ -43,11 +44,20 @@ def setup_workspace(db: ForgeDatabase) -> Workspace:
     )
 
     # Create software engineer agent with specified abilities.
-    engineer = SoftwareDevelopmentAgent(
+    engineer = Agent(
         public_name="Max Dillon",
         job_title="Software Development Specialist",
         workspace=workspace,
         db=db,
+        ability_names=[
+            "change_issue_status",
+            "add_comment",
+            "read_file",
+            "write_file",
+            "list_files",
+            "execute_python_code",
+            "finish_work",
+        ],
     )
 
     # Create information retrieval specialist agent with specified abilities.
