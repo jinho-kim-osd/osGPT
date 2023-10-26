@@ -113,10 +113,12 @@ brew install chromedriver
 
 ## 🚀 What's Next?
 
-We're gearing up for an even more seamless collaboration! The ability to integrate with real-world project management systems, especially platforms like Jira, is a significant highlight in our roadmap. This integration ensures that AI agents can co-work with humans, offering a truly unified project management experience.
+1. Real-World Integration
+   Our top priority is the full integration with real-world project management systems. Especially with platforms like Jira, we're taking steps to ensure that AI agents can co-work side by side with human teammates, bringing a unified project management experience to the table.
 
-Additionally, we're planning to enhance the agent protocols, allowing each agent to operate autonomously according to its designated protocols. This means a more scalable and flexible system, as agents can be easily swapped or upgraded based on evolving project needs.
+    <p align="center">
+    <img src="./autogpts/osGPT/public/jira.png" alt="Jira Integration Preview" width="400"/>
+    </p>
 
-<p align="center">
-  <img src="./autogpts//osGPT/public/jira.png" alt="Jira" width="400"/>
-</p>
+2. Enhanced Agent Protocols
+   As we advance, our AI agent protocols will also undergo significant enhancements. Expect each agent to operate even more autonomously, sticking to its designated protocols. The result? A scalable and flexible system where agents can be swapped or upgraded as your project needs evolve.
