@@ -107,7 +107,7 @@ brew install chromedriver
   # issue.add_activity(comment)
   ```
 
-### 2. Coding: 6/8
+### 2. Coding: 7/8
 
 ### 3. Scrape/Synthesize: 8/8
 
