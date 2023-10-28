@@ -109,8 +109,9 @@ class JiraAgent(AgentBase):
             else self.workspace.get_project(step_request.additional_input.get("project_key"))
         )
 
-        if step_request.input:
-            self.create_issue_from_user_request(task_id, project, step_request.input)
+        if len(project.issues) == 0:
+            task = await self.get_task(task_id)
+            self.create_issue_from_user_request(task_id, project, task.input)
 
         step_activities = await self.process_issues(project)
 
